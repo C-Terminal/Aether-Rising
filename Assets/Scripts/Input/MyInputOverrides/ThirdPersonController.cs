@@ -1,11 +1,11 @@
-﻿using Gameplay.Input.MyInputOverrides.InputSystem;
+﻿using Input.MyInputOverrides.InputSystem;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 /* Note: animations are called via the controller for both the character and capsule using animator null checks
  */
 
-namespace Gameplay.Input.MyInputOverrides
+namespace Input.MyInputOverrides
 {
     [RequireComponent(typeof(CharacterController))]
 #if ENABLE_INPUT_SYSTEM 

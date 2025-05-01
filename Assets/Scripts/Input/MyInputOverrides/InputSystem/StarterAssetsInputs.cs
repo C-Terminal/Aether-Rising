@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace Gameplay.Input.MyInputOverrides.InputSystem
+namespace Input.MyInputOverrides.InputSystem
 {
 	public class StarterAssetsInputs : MonoBehaviour
 	{
