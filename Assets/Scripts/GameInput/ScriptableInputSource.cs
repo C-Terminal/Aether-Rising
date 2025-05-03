@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace Input
+namespace GameInput
 {
 
     [CreateAssetMenu(menuName = "Input/NPC Input Source")]

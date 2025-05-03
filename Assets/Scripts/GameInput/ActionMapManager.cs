@@ -2,7 +2,7 @@
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-namespace Input
+namespace GameInput
 {
     public class ActionMapManager : MonoBehaviour
     {
@@ -51,12 +51,14 @@ namespace Input
             {
                 playerMap.Disable();
                 uiMap.Enable();
+                playerInput.SwitchCurrentActionMap("UI");
                 EventSystem.current.SetSelectedGameObject(gameUIDefaultButton);
             }
             else
             {
                 playerMap.Enable();
                 uiMap.Disable();
+                playerInput.SwitchCurrentActionMap("Player");
             }
 
             universalMap.Enable(); // Always keep Universal map active
