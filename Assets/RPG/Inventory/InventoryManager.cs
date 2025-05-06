@@ -113,7 +113,6 @@ namespace RPG.Inventory
 
             if (isActive)
             {
-                // TODO: Integrate with ActionMapManager to switch to UI map
                 Debug.Log("Inventory Opened - ActionMapManager should switch to UI map.");
                 // Example: FindObjectOfType<ActionMapManager>()?.SwitchToUIMap(); // Needs proper reference
                 RefreshUI(); // Ensure UI is up-to-date when opened
@@ -121,7 +120,6 @@ namespace RPG.Inventory
             }
             else
             {
-                // TODO: Integrate with ActionMapManager to switch back to Player map
                 Debug.Log("Inventory Closed - ActionMapManager should switch to Player map.");
                 // Example: FindObjectOfType<ActionMapManager>()?.SwitchToPlayerMap(); // Needs proper reference
                 inputHandler?.DisableNavigation(); // Disable grid navigation

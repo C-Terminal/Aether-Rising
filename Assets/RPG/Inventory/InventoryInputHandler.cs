@@ -7,7 +7,6 @@ namespace RPG.Inventory
 {
     public class InventoryInputHandler : MonoBehaviour
     {
-        //TODO: alter input actions
         [Header("Input Action References")] [SerializeField]
         private PlayerInput playerInput; // Assign the PlayerInput component
 
