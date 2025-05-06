@@ -9,25 +9,26 @@ namespace RPG.Inventory
     public class InventoryManager : MonoBehaviour
     {
         [Header("Inventory Settings")] [SerializeField]
-        private int inventorySize = 20; // Total number of slots
+        private int inventorySize = 20;
 
         [Header("UI References")] [SerializeField]
-        private GameObject inventoryPanel; // The main inventory UI panel
+        private GameObject inventoryPanel;
 
-        [SerializeField] private Transform inventoryGridContainer; // Parent object holding the slot UI elements
-        [SerializeField] private GameObject inventorySlotPrefab; // Prefab for a single slot UI
+        [SerializeField] private Transform inventoryGridContainer;
+        [SerializeField] private GameObject inventorySlotPrefab;
+        [SerializeField] private GameObject defaultInventoryButton; // Assign the first slot or a specific button
 
         // Reference to the input handler (can be on the same object or assigned)
         [SerializeField] private InventoryInputHandler inputHandler;
+        private readonly List<InventorySlotUI> slotUIElements = new(); // UI elements for each slot
+        [SerializeField] private List<InventorySlot> _inventorySlots;
 
-        private readonly List<InventorySlotUI> _slotUIElements = new(); // UI elements for each slot
-
-        [SerializeField] private List<InventorySlot> _inventorySlots; // The actual data
 
         private ActionMapManager actionMapManager;
 
         //Singleton
         public static InventoryManager Instance { get; private set; }
+
 
         private void Awake()
         {
@@ -47,14 +48,13 @@ namespace RPG.Inventory
             if (inventoryPanel == null) Debug.LogError("Inventory Panel not assigned!");
             if (inventoryGridContainer == null) Debug.LogError("Inventory Grid Container not assigned!");
             if (inventorySlotPrefab == null) Debug.LogError("Inventory Slot Prefab not assigned!");
-            if (inputHandler == null)
-            {
-                inputHandler = GetComponent<InventoryInputHandler>(); // Try to get it if not assigned
-                if (inputHandler == null) Debug.LogError("Inventory Input Handler not found or assigned!");
-            }
+            if (inventoryPanel == null) Debug.LogError("Inventory Panel not assigned!");
+            // ... other null checks ...
+            if (inputHandler == null) inputHandler = GetComponent<InventoryInputHandler>();
+
 
             InitializeUI();
-            inventoryPanel.SetActive(false); // Start closed
+            if (inventoryPanel != null) inventoryPanel.SetActive(false);
         }
 
         private void Start()
@@ -63,18 +63,15 @@ namespace RPG.Inventory
             if (actionMapManager != null) actionMapManager.OnToggleUI += OnToggleUI;
         }
 
-        private void OnToggleUI(InputAction.CallbackContext obj)
+        private void OnDestroy()
         {
-            Debug.Log("OnToggleUI called. Inventory panel is now: " + inventoryPanel.activeSelf);
-            ToggleInventory();
+            if (actionMapManager != null) actionMapManager.OnToggleUI -= OnToggleUI;
         }
 
-        void OnDestroy()
+        private void OnToggleUI(InputAction.CallbackContext obj)
         {
-            if (actionMapManager != null)
-            {
-                actionMapManager.OnToggleUI -= OnToggleUI;
-            }
+            // Debug.Log("OnToggleUI called. Inventory panel is now: " + inventoryPanel.activeSelf);
+            // ToggleInventory();
         }
 
         private void InitializeUI()
@@ -83,7 +80,7 @@ namespace RPG.Inventory
 
             // Clear any existing test slots in editor
             foreach (Transform child in inventoryGridContainer) Destroy(child.gameObject);
-            _slotUIElements.Clear();
+            slotUIElements.Clear();
 
             //instantiate UI slots based on inventory size
             for (var i = 0; i < inventorySize; i++)
@@ -93,7 +90,7 @@ namespace RPG.Inventory
                 var slotUI = slotGO.GetComponent<InventorySlotUI>();
                 if (slotUI != null)
                 {
-                    _slotUIElements.Add(slotUI);
+                    slotUIElements.Add(slotUI);
                     slotUI.UpdateDisplay(_inventorySlots[i]); // Update with initial data (likely empty)
                 }
                 else
@@ -103,32 +100,53 @@ namespace RPG.Inventory
             }
 
             // Pass UI elements to input handler for navigation
-            if (inputHandler != null) inputHandler.SetSlotUIElements(_slotUIElements);
+            if (inputHandler != null) inputHandler.SetSlotUIElements(slotUIElements);
         }
 
         public void ToggleInventory()
         {
-            var isActive = !inventoryPanel.activeSelf;
-            inventoryPanel.SetActive(isActive);
-
-            if (isActive)
+            if (inventoryPanel == null || GameInput.ActionMapManager.Instance == null) // Qualify with namespace if needed
             {
-                Debug.Log("Inventory Opened - ActionMapManager should switch to UI map.");
-                // Example: FindObjectOfType<ActionMapManager>()?.SwitchToUIMap(); // Needs proper reference
-                RefreshUI(); // Ensure UI is up-to-date when opened
-                inputHandler?.EnableNavigation(); // Enable grid navigation
+                Debug.LogError("InventoryPanel or ActionMapManager instance is missing!");
+                return;
+            }
+            
+            bool shouldBeActive = !inventoryPanel.activeSelf;
+            inventoryPanel.SetActive(shouldBeActive);
+
+            if (shouldBeActive)
+            {
+                GameInput.ActionMapManager.Instance.RequestInputFocus(GameInput.InputFocusState.UIMode, defaultInventoryButton);
+                RefreshUI(); // Refresh when opening
+                inputHandler?.EnableNavigation(); // Still needed for the inventory's internal navigation
             }
             else
             {
-                Debug.Log("Inventory Closed - ActionMapManager should switch to Player map.");
-                // Example: FindObjectOfType<ActionMapManager>()?.SwitchToPlayerMap(); // Needs proper reference
-                inputHandler?.DisableNavigation(); // Disable grid navigation
+                // Request gameplay focus. ActionMapManager will handle setting the EventSystem's selected object to null.
+                GameInput.ActionMapManager.Instance.RequestInputFocus(GameInput.InputFocusState.Gameplay);
+                inputHandler?.DisableNavigation();
             }
+        }
+        
+        public bool IsInventoryOpen()
+        {
+            return inventoryPanel != null && inventoryPanel.activeSelf;
+        }
+        
+        public GameObject GetDefaultSelectedInventoryButton()
+        {
+            // Return the first slot UI element's GameObject, or a dedicated default button.
+            if (defaultInventoryButton != null) return defaultInventoryButton;
+            if (slotUIElements != null && slotUIElements.Count > 0 && slotUIElements[0] != null)
+            {
+                return slotUIElements[0].gameObject; // Assuming first slot is default
+            }
+            return null;
         }
 
         private void RefreshUI()
         {
-            if (_slotUIElements.Count != _inventorySlots.Count)
+            if (slotUIElements.Count != _inventorySlots.Count)
             {
                 Debug.LogError("Mismatch between inventory data slots and UI slots!");
                 InitializeUI(); // Attempt to fix by reinitializing
@@ -136,8 +154,8 @@ namespace RPG.Inventory
             }
 
             for (var i = 0; i < _inventorySlots.Count; i++)
-                if (i < _slotUIElements.Count) // Safety check
-                    _slotUIElements[i].UpdateDisplay(_inventorySlots[i]);
+                if (i < slotUIElements.Count) // Safety check
+                    slotUIElements[i].UpdateDisplay(_inventorySlots[i]);
 
             // Optionally, tell input handler to update selection if needed after refresh
             inputHandler?.UpdateSelectionHighlight();
@@ -278,7 +296,7 @@ namespace RPG.Inventory
 
         public InventorySlotUI GetSlotUI(int index)
         {
-            if (index >= 0 && index < _slotUIElements.Count) return _slotUIElements[index];
+            if (index >= 0 && index < slotUIElements.Count) return slotUIElements[index];
             return null;
         }
     }

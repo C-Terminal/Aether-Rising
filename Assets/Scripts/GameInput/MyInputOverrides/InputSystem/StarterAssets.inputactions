@@ -508,7 +508,7 @@
             "id": "d2b79420-408f-49b1-9eac-9f209c45c947",
             "actions": [
                 {
-                    "name": "ToggleUI",
+                    "name": "ToggleGeneralUI",
                     "type": "Button",
                     "id": "88492ea4-6210-456e-b320-b83a7cb57dcd",
                     "expectedControlType": "",
@@ -543,7 +543,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": ";KeyboardMouse",
-                    "action": "ToggleUI",
+                    "action": "ToggleGeneralUI",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

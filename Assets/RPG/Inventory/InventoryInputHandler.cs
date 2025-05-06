@@ -186,15 +186,15 @@ namespace RPG.Inventory
 
         private void OnCancelPerformed(InputAction.CallbackContext context)
         {
-            // Tell the InventoryManager (or a UIManager) to close the inventory
-            InventoryManager manager = GetComponent<InventoryManager>(); // Assuming same object
-            if (manager != null)
+            // Now, simply tell the InventoryManager to handle the toggle.
+            // InventoryManager will then request the correct input focus from ActionMapManager.
+            if (InventoryManager.Instance != null)
             {
-                manager.ToggleInventory(); // Toggle will handle closing and map switching via Debug logs for now
+                InventoryManager.Instance.ToggleInventory();
             }
             else
             {
-                Debug.LogWarning("Cancel pressed, but no InventoryManager found to close inventory.");
+                Debug.LogWarning("Cancel pressed in Inventory, but no InventoryManager instance found.");
             }
         }
 
