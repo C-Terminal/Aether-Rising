@@ -137,6 +137,11 @@ namespace GameInput
                 return;
             }
 
+            // CORE FIX: Ensure PlayerInput component is enabled before switching maps,
+            // as SwitchCurrentActionMap requires the component to be active.
+            // Specific states that might require playerInput to be fully off (rare) would handle it explicitly.
+            playerInput.enabled = true;
+            
             currentFocusState = requestedState;
             LogActionMapStates("Before Change");
 
@@ -147,7 +152,7 @@ namespace GameInput
 
             // Disable PlayerInput component temporarily if needed for rebinding
             // This is a more direct way to stop player character input during full-screen rebinding.
-            playerInput.enabled = requestedState != InputFocusState.Rebinding;
+            // playerInput.enabled = requestedState != InputFocusState.Rebinding;
 
 
             switch (requestedState)

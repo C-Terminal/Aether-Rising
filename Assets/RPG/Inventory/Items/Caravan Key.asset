@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cd2cf8a368e74d96a2dfa2ed6af15593, type: 3}
+  m_Name: Caravan Key
+  m_EditorClassIdentifier: 
+  itemName: Caravan Key
+  description: Open's the main doors to the Caravan. Don't forget to lock the door
+    when you enter or leave, as what's his name always says
+  icon: {fileID: 0}
+  isStackable: 0
+  maxStackSize: 1
