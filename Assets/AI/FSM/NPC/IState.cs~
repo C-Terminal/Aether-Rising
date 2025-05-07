@@ -1,0 +1,15 @@
+﻿namespace AI.NPC
+{
+    public interface IState
+    {
+        // Called when transitioning into this state
+        public void OnStateEnter();
+        // Called every frame while this state is active
+        public void OnStateUpdate(float deltaTime);
+        // Called when transitioning out of this state
+        public void OnStateExit();
+    }
+    
+    
+    
+}
