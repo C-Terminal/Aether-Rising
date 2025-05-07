@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background layers -->
+  <defs>
+    <!-- Parchment texture pattern -->
+    <pattern id="parchmentTexture" patternUnits="userSpaceOnUse" width="200" height="200">
+      <rect width="200" height="200" fill="#1a1014"/>
+      <path d="M0 0h200v200H0z" fill-opacity="0.2" fill="#2a1a20"/>
+      <filter id="noise">
+        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.5 0"/>
+      </filter>
+      <rect width="200" height="200" filter="url(#noise)" opacity="0.1"/>
+    </pattern>
+    
+    <!-- Gothic border patterns -->
+    <pattern id="borderPattern" patternUnits="userSpaceOnUse" width="40" height="40">
+      <path d="M0,20 Q10,0 20,20 T40,20" stroke="#6b4a3a" fill="none" stroke-width="1.5"/>
+      <path d="M20,0 Q40,10 20,20 T20,40" stroke="#6b4a3a" fill="none" stroke-width="1.5"/>
+    </pattern>
+    
+    <!-- Radial gradient for dark mystical look -->
+    <radialGradient id="darkVignette" cx="50%" cy="50%" r="60%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#2a1a20" stop-opacity="0.1"/>
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.7"/>
+    </radialGradient>
+    
+    <!-- Filter for subtle inner glow -->
+    <filter id="innerGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  
+  <!-- Main background with parchment texture -->
+  <rect width="800" height="600" fill="url(#parchmentTexture)"/>
+  
+  <!-- Dark vignette overlay for atmosphere -->
+  <rect width="800" height="600" fill="url(#darkVignette)"/>
+  
+  <!-- Decorative border -->
+  <rect x="20" y="20" width="760" height="560" fill="none" stroke="#482c1c" stroke-width="2" rx="10" ry="10"/>
+  <rect x="30" y="30" width="740" height="540" fill="none" stroke="#6b4a3a" stroke-width="1.5" rx="8" ry="8"/>
+  
+  <!-- Gothic corner decorations -->
+  <!-- Top left -->
+  <path d="M20,40 L20,20 L40,20" stroke="#906b58" stroke-width="3" fill="none"/>
+  <path d="M20,60 C50,50 50,20 60,20" stroke="#906b58" stroke-width="2" fill="none"/>
+  
+  <!-- Top right -->
+  <path d="M780,40 L780,20 L760,20" stroke="#906b58" stroke-width="3" fill="none"/>
+  <path d="M780,60 C750,50 750,20 740,20" stroke="#906b58" stroke-width="2" fill="none"/>
+  
+  <!-- Bottom left -->
+  <path d="M20,560 L20,580 L40,580" stroke="#906b58" stroke-width="3" fill="none"/>
+  <path d="M20,540 C50,550 50,580 60,580" stroke="#906b58" stroke-width="2" fill="none"/>
+  
+  <!-- Bottom right -->
+  <path d="M780,560 L780,580 L760,580" stroke="#906b58" stroke-width="3" fill="none"/>
+  <path d="M780,540 C750,550 750,580 740,580" stroke="#906b58" stroke-width="2" fill="none"/>
+  
+  <!-- Mystical symbols scattered in the background -->
+  <g opacity="0.15">
+    <path d="M200,150 l15,25 l-30,0 z" stroke="#c0aa94" fill="none" stroke-width="1"/>
+    <circle cx="400" cy="200" r="15" stroke="#c0aa94" fill="none" stroke-width="1"/>
+    <path d="M600,250 l20,0 l-10,18 z" stroke="#c0aa94" fill="none" stroke-width="1"/>
+    <path d="M700,350 l-15,25 l-15,-25 l10,0 l0,-20 l10,0 l0,20 z" stroke="#c0aa94" fill="none" stroke-width="1"/>
+    <path d="M200,450 l0,-20 l20,0 l0,20 l-20,0 M210,430 l0,-10" stroke="#c0aa94" fill="none" stroke-width="1"/>
+    <path d="M450,500 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0 M465,485 l0,30 M450,500 l30,0" stroke="#c0aa94" fill="none" stroke-width="1"/>
+  </g>
+  
+  <!-- Subtle ornamental patterns -->
+  <path d="M50,100 C100,80 120,120 170,100" stroke="#6b4a3a" stroke-opacity="0.2" fill="none" stroke-width="1"/>
+  <path d="M50,500 C100,520 120,480 170,500" stroke="#6b4a3a" stroke-opacity="0.2" fill="none" stroke-width="1"/>
+  <path d="M630,100 C680,80 700,120 750,100" stroke="#6b4a3a" stroke-opacity="0.2" fill="none" stroke-width="1"/>
+  <path d="M630,500 C680,520 700,480 750,500" stroke="#6b4a3a" stroke-opacity="0.2" fill="none" stroke-width="1"/>
+  
+  <!-- Subtle glowing elements -->
+  <circle cx="180" cy="120" r="3" fill="#906b58" opacity="0.6">
+    <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="620" cy="120" r="3" fill="#906b58" opacity="0.6">
+    <animate attributeName="opacity" values="0.3;0.7;0.3" dur="4s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="180" cy="480" r="3" fill="#906b58" opacity="0.6">
+    <animate attributeName="opacity" values="0.3;0.7;0.3" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="620" cy="480" r="3" fill="#906b58" opacity="0.6">
+    <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3.5s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Central area for items -->
+  <rect x="60" y="60" width="680" height="480" fill="#141010" fill-opacity="0.4" rx="5" ry="5"/>
+  
+  <!-- Subtle grid pattern for inventory slots -->
+  <g opacity="0.15">
+    <path d="M100,100 h600 M100,150 h600 M100,200 h600 M100,250 h600 M100,300 h600 M100,350 h600 M100,400 h600 M100,450 h600 M100,500 h600" stroke="#906b58" stroke-width="1"/>
+    <path d="M100,100 v400 M150,100 v400 M200,100 v400 M250,100 v400 M300,100 v400 M350,100 v400 M400,100 v400 M450,100 v400 M500,100 v400 M550,100 v400 M600,100 v400 M650,100 v400 M700,100 v400" stroke="#906b58" stroke-width="1"/>
+  </g>
+</svg>
