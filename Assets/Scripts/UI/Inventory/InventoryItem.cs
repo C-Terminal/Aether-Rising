@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace RPG.Inventory
+namespace UI.Inventory
 {
 // Create -> RPG -> Inventory Item in the Project window asset menu
     [CreateAssetMenu(fileName = "New Inventory Item", menuName = "RPG/Inventory Item")]

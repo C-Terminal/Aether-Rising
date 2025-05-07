@@ -1,4 +1,4 @@
-﻿namespace RPG.Inventory
+﻿namespace UI.Inventory
 {
     public class InventorySlot
     {

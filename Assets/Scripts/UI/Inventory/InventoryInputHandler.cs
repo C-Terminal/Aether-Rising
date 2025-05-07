@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace RPG.Inventory
+namespace UI.Inventory
 {
     public class InventoryInputHandler : MonoBehaviour
     {

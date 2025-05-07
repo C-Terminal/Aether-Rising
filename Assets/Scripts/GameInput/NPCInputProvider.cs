@@ -1,4 +1,4 @@
-﻿using Input;
+﻿
 using UnityEngine;
 
 namespace GameInput

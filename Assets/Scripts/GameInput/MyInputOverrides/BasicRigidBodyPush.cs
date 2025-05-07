@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace Gameplay.Input.MyInputOverrides
+namespace GameInput.MyInputOverrides
 {
 	public class BasicRigidBodyPush : MonoBehaviour
 	{

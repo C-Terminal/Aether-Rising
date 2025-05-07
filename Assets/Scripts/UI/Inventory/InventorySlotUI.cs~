@@ -1,8 +1,9 @@
-﻿using TMPro;
+﻿using System;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace UI.Inventory
+namespace RPG.Inventory
 {
     public class InventorySlotUI : MonoBehaviour
     {

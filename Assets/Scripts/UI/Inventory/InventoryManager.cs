@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-namespace RPG.Inventory
+namespace UI.Inventory
 {
     public class InventoryManager : MonoBehaviour
     {
