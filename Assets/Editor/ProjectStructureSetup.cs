@@ -52,6 +52,7 @@ namespace Editor
             "UI/HUD",
             "UI/Dialogue",
             "UI/Notifications",
+            "UI/Inventory",
 
             "Audio/AudioEvents",
 
