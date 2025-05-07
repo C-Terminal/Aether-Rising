@@ -1,0 +1,10 @@
+﻿namespace Combat.DamageSystem.Health
+{
+    public interface IHealth
+    {
+        int CurrentHealth { get; }
+        void TakeDamage(int amount);
+        void Die();
+        // Could also include MaxHealth, IsDead properties/methods if needed by other systems directly
+    }
+}

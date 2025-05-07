@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace Character
+namespace Animation.AnimControllers
 {
     /// <summary>
     /// Manages character animations by interfacing with the Animator component.

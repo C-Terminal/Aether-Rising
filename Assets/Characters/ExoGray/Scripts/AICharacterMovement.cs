@@ -1,4 +1,5 @@
 using System;
+using Animation.AnimControllers;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -21,7 +22,7 @@ namespace Characters.ExoGray.Scripts
 
         [Header("Component References")]
         [Tooltip("Reference to the CharacterAnimator component.")]
-        [SerializeField] private Character.CharacterAnimator characterAnimator; // Reference via Inspector
+        [SerializeField] private CharacterAnimator characterAnimator; // Reference via Inspector
 
         // --- Component References ---
         private NavMeshAgent _agent;
@@ -45,7 +46,7 @@ namespace Characters.ExoGray.Scripts
             {
                 Debug.LogWarning("AICharacterMovement: CharacterAnimator reference not set.", this);
                 // Optionally try to find it on the same GameObject
-                characterAnimator = GetComponent<Character.CharacterAnimator>();
+                characterAnimator = GetComponent<CharacterAnimator>();
                 if (characterAnimator == null)
                 {
                     Debug.LogError("AICharacterMovement: CharacterAnimator component not found.", this);
