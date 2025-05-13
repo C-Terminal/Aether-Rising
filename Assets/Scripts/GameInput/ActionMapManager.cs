@@ -1,5 +1,5 @@
 ﻿using System;
-using RPG.Inventory;
+using UI.Inventory;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
