@@ -1,4 +1,5 @@
 ﻿using AI.FSM.NPC.States;
+using Animation.AnimControllers;
 using Combat.DamageSystem.Health;
 using UnityEngine;
 
@@ -22,7 +23,7 @@ namespace Characters.NPC
     [RequireComponent(typeof(Animator))]
     public class Actions : MonoBehaviour
     {
-        private Animator _animator;
+        [SerializeField] private CharacterAnimator _characterAnimator;
         private Health _health;
 
         // References to state components (optional, if subscribing directly)
@@ -42,7 +43,10 @@ namespace Characters.NPC
 
         void Awake()
         {
-            _animator = GetComponent<Animator>();
+            // _animator = GetComponent<Animator>(); // Old way
+            if(_characterAnimator == null) _characterAnimator = GetComponent<CharacterAnimator>(); // New way
+            if (_characterAnimator == null) Debug.LogError("Actions: CharacterAnimator component not found!", this);
+            // ... rest of Awake ...
             _health = GetComponent<Health>(); // Assumes Health component is on the same GameObject
 
             // Get references to state components if they are on the same GameObject
@@ -55,7 +59,7 @@ namespace Characters.NPC
             _hitState = GetComponent<HitState>();
             _deathState = GetComponent<DeathState>();
 
-            if (_animator == null) Debug.LogError("Actions: Animator component not found!", this);
+            if (_characterAnimator == null) Debug.LogError("Actions: Animator component not found!", this);
             if (_health == null) Debug.LogWarning("Actions: Health component not found. Damage/Death animations might not work.", this);
         }
 
@@ -118,36 +122,36 @@ namespace Characters.NPC
 
         private void HandleIdleAnimation()
         {
-            if (_animator == null) return;
-            _animator.SetBool("Aiming", false);
-            _animator.SetBool("Squat", false);
-            _animator.SetFloat("Speed", 0f);
-            Debug.Log("Actions: Idle Animation Triggered");
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetAiming(false);
+            _characterAnimator.SetSquatting(false);
+            _characterAnimator.SetMovementSpeed(0f);
+            Debug.Log("Actions: Idle Animation Triggered via CharacterAnimator");
         }
 
         private void HandlePatrolAnimation() // Used for Patrol and Wander
         {
-            if (_animator == null) return;
-            _animator.SetBool("Aiming", false);
-            _animator.SetBool("Squat", false);
-            _animator.SetFloat("Speed", 0.5f); // Example speed for walk
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetAiming(false);
+            _characterAnimator.SetSquatting(false);
+            _characterAnimator.SetMovementSpeed(0.5f); //example walk speed
             Debug.Log("Actions: Patrol/Wander Animation Triggered");
         }
 
         private void HandleChaseAnimation() // Run
         {
-            if (_animator == null) return;
-            _animator.SetBool("Aiming", false);
-            _animator.SetBool("Squat", false);
-            _animator.SetFloat("Speed", 1.0f); // Example speed for run (original used 0.7f)
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetAiming(false);
+            _characterAnimator.SetSquatting(false);
+            _characterAnimator.SetMovementSpeed(1f); //example run speed
             Debug.Log("Actions: Chase Animation Triggered");
         }
 
         private void HandleCrouchingRunAnimation()
         {
-            if (_animator == null) return;
-            _animator.SetBool("Squat", true);
-            _animator.SetFloat("Speed", 0.7f); // Example speed for crouching run
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetSquatting(false);
+            _characterAnimator.SetMovementSpeed(0.7f);
             Debug.Log("Actions: Crouching Run Animation Triggered");
         }
 
@@ -156,35 +160,35 @@ namespace Characters.NPC
         // If NPCController handles attack animation, this might only set "Aiming".
         private void HandleAttackAiming()
         {
-            if (_animator == null) return;
-            _animator.SetBool("Aiming", true);
-            _animator.SetBool("Squat", false);
-            _animator.SetFloat("Speed", 0f);
-            // Original also did: _animator.SetTrigger("Attack");
-            // This might not be needed if NPCController's CharacterAnimator.SetAttack(true/false) is used.
-            // For now, let's keep it to reflect the original FSM's intent for Actions.cs.
-            // If your new NPCController manages the SetAttack(bool) on CharacterAnimator,
-            // then the FSM's AttackState might not invoke OnNpcAttack, or this handler does less.
-            _animator.SetTrigger("Attack"); // Assuming a trigger-based attack animation
-            Debug.Log("Actions: Attack Aiming / Trigger Animation Triggered");
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetAiming(true);
+            _characterAnimator.SetSquatting(false);
+            _characterAnimator.SetMovementSpeed(0f);
+
+            // Decide: Does Actions.cs trigger a specific attack animation,
+            // or does NPCController entirely handle attacks with SetAttacking(bool)?
+            // If NPCController is primary, this trigger might be for a special FSM-driven attack
+            // or not used at all for the main attack loop.
+            // _characterAnimator.TriggerAttack();
+            Debug.Log("Actions: Attack Aiming setup via CharacterAnimator");
         }
 
         private void HandleDeathAnimation()
         {
-            if (_animator == null) return;
-            _animator.SetFloat("Speed", 0f);
-            _animator.SetBool("Aiming", false);
-            _animator.SetBool("Squat", false);
-            _animator.SetTrigger("Death"); // Assuming "Death" is a trigger parameter
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetAiming(true);
+            _characterAnimator.SetSquatting(false);
+            _characterAnimator.SetMovementSpeed(0f);
+            _characterAnimator.TriggerDeath(); // Assuming "Death" is a trigger parameter
             Debug.Log("Actions: Death Animation Triggered");
         }
 
         private void HandleDamageAnimation()
         {
-            if (_animator == null || (_health != null && _health.IsDead)) return; // Don't play if dead
+            if (_characterAnimator == null || (_health != null && _health.IsDead)) return; // Don't play if dead
 
             // Ensure not already in a death animation state
-            if (_animator.GetCurrentAnimatorStateInfo(0).IsName("Death")) return; // Adjust "Death" if your state name is different
+            if (_characterAnimator.IsInAnimationState("Death")) return; // Adjust "Death" if your state name is different
 
             int damageAnimId = UnityEngine.Random.Range(0, COUNT_OF_DAMAGE_ANIMATIONS);
             if (COUNT_OF_DAMAGE_ANIMATIONS > 1)
@@ -196,17 +200,16 @@ namespace Characters.NPC
             }
             _lastDamageAnimationId = damageAnimId;
 
-            _animator.SetInteger("DamageID", damageAnimId); // Assuming "DamageID" is an integer parameter
-            _animator.SetTrigger("Damage"); // Assuming "Damage" is a trigger parameter
+            _characterAnimator.TriggerHitReaction(damageAnimId); // Assuming "DamageID" is an integer parameter
             Debug.Log($"Actions: Damage Animation Triggered (ID: {damageAnimId})");
         }
 
-        public void HandleSquatAnimation()
+        private void HandleSquatAnimation()
         {
-            if (_animator == null) return;
-            _animator.SetBool("Squat", true);
-            _animator.SetBool("Aiming", false);
-            _animator.SetFloat("Speed", 0f);
+            if (_characterAnimator == null) return;
+            _characterAnimator.SetSquatting(true);
+            _characterAnimator.SetAiming(false);
+            _characterAnimator.SetMovementSpeed(0f);
             Debug.Log("Actions: Squat Animation Triggered");
         }
 

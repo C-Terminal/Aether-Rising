@@ -66,8 +66,7 @@ namespace AI.FSM.NPC.States
             if (agent != null && agent.enabled && stateMachine.Player != null)
             {
                 //TODO: add boolean to prevent repeat calls
-                playerTarget = stateMachine.Player;
-                agent.SetDestination(playerTarget.position); // Or NPCStateMachine.MoveToPlayer());
+                agent.SetDestination(movementSensor.currentTarget.position); // Or NPCStateMachine.MoveToPlayer());
                 if (Vector3.Distance(transform.position, playerTarget.position) <= agent.stoppingDistance)
                     movementSensor.FaceCurrentTarget(); // Or NPCStateMachine.RotateToFacePlayer()
             }

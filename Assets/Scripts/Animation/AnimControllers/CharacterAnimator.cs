@@ -1,38 +1,61 @@
 ﻿using UnityEngine;
 
-namespace Animation.AnimControllers
+namespace Animation.AnimControllers // Assuming this is your namespace
 {
     /// <summary>
     /// Manages character animations by interfacing with the Animator component.
-    /// Provides methods to set animation parameters based on character actions.
+    /// Provides a comprehensive API to set animation parameters based on character actions and FSM states.
     /// </summary>
     [RequireComponent(typeof(Animator))]
     public class CharacterAnimator : MonoBehaviour
     {
         private Animator _animator;
 
-        // --- Animator Parameter IDs (Cached for Performance) ---
-        // It's good practice to add all relevant parameter IDs here
-        private readonly int _animIDAttack = Animator.StringToHash("Attack");
-        private readonly int _animIDSpeed = Animator.StringToHash("Speed"); // Example: For movement
-        private readonly int _animIDJump = Animator.StringToHash("Jump");   // Example: For jumping
-        private readonly int _animIDGrounded = Animator.StringToHash("Grounded"); // Example: For grounded state
+        // --- Animator Parameter StringHashes (Cached for Performance) ---
+        private readonly int _animIDSpeed = Animator.StringToHash("Speed");
+        private readonly int _animIDAttack = Animator.StringToHash("Attack"); // Used as bool by NPCController
+        private readonly int _animIDAttackTrigger = Animator.StringToHash("AttackTrigger"); // Optional: if Actions.cs uses a trigger for attack
+
+        private readonly int _animIDAiming = Animator.StringToHash("Aiming");
+        private readonly int _animIDSquat = Animator.StringToHash("Squat"); // Or "IsCrouching"
+
+        private readonly int _animIDDamageTrigger = Animator.StringToHash("Damage"); // Trigger for hit reaction
+        private readonly int _animIDDamageID = Animator.StringToHash("DamageID"); // Integer for type of hit animation
+
+        private readonly int _animIDDeathTrigger = Animator.StringToHash("Death"); // Trigger for death animation
+
+        // Existing parameters (good to keep for general character control)
+        private readonly int _animIDJumpTrigger = Animator.StringToHash("Jump");
+        private readonly int _animIDGrounded = Animator.StringToHash("Grounded");
 
         private void Awake()
         {
-            // Get the Animator component attached to this GameObject
             _animator = GetComponent<Animator>();
             if (_animator == null)
             {
-                Debug.LogError("CharacterAnimator requires an Animator component.", this);
+                Debug.LogError("CharacterAnimator: Animator component not found on this GameObject. Script will not function.", this);
+                enabled = false; // Disable if critical component is missing
             }
         }
 
         /// <summary>
-        /// Sets the boolean parameter controlling the attack animation state.
+        /// Sets the character's current movement speed for blend trees (idle, walk, run).
         /// </summary>
-        /// <param name="isAttacking">True to trigger the attack animation, false to stop.</param>
-        public void SetAttack(bool isAttacking)
+        /// <param name="speed">The normalized speed (e.g., 0 for idle, 0.5 for walk, 1.0 for run).</param>
+        public void SetMovementSpeed(float speed)
+        {
+            if (_animator != null)
+            {
+                _animator.SetFloat(_animIDSpeed, speed);
+            }
+        }
+
+        /// <summary>
+        /// Sets the boolean parameter controlling a continuous attack animation state.
+        /// Typically used by NPCController for its attack loop.
+        /// </summary>
+        /// <param name="isAttacking">True to start/continue attacking, false to stop.</param>
+        public void SetAttacking(bool isAttacking) // Renamed from SetAttack to avoid confusion with TriggerAttack
         {
             if (_animator != null)
             {
@@ -41,25 +64,78 @@ namespace Animation.AnimControllers
         }
 
         /// <summary>
-        /// Sets the float parameter representing the character's movement speed.
+        /// Triggers a one-shot attack animation.
+        /// Potentially used by Actions.cs if FSM dictates a specific single attack.
         /// </summary>
-        /// <param name="speed">The current speed value (e.g., 0 for idle, >0 for moving).</param>
-        public void SetMovementSpeed(float speed)
+        public void TriggerAttack()
         {
             if (_animator != null)
             {
-                 // Typically use magnitude for blending walk/run
-                _animator.SetFloat(_animIDSpeed, speed);
+                _animator.SetTrigger(_animIDAttackTrigger);
             }
         }
 
-         /// <summary>
+        /// <summary>
+        /// Sets the aiming state of the character.
+        /// </summary>
+        /// <param name="isAiming">True if the character is aiming, false otherwise.</param>
+        public void SetAiming(bool isAiming)
+        {
+            if (_animator != null)
+            {
+                _animator.SetBool(_animIDAiming, isAiming);
+            }
+        }
+
+        /// <summary>
+        /// Sets the squatting/crouching state of the character.
+        /// </summary>
+        /// <param name="isSquatting">True if the character is squatting, false otherwise.</param>
+        public void SetSquatting(bool isSquatting)
+        {
+            if (_animator != null)
+            {
+                _animator.SetBool(_animIDSquat, isSquatting);
+            }
+        }
+
+        /// <summary>
+        /// Triggers a hit reaction animation and sets the type of damage animation.
+        /// </summary>
+        /// <param name="damageTypeID">An integer ID to select a specific damage animation variant.</param>
+        public void TriggerHitReaction(int damageTypeID)
+        {
+            if (_animator != null)
+            {
+                _animator.SetInteger(_animIDDamageID, damageTypeID);
+                _animator.SetTrigger(_animIDDamageTrigger);
+            }
+        }
+
+        /// <summary>
+        /// Triggers the death animation.
+        /// </summary>
+        public void TriggerDeath()
+        {
+            if (_animator != null)
+            {
+                //TODO: Probably remove these calls (they're already in Action.cs)
+                // Ensure other states that might prevent death anim are reset if needed
+                SetMovementSpeed(0f);
+                SetAiming(false);
+                SetSquatting(false);
+                SetAttacking(false); // Stop continuous attack if any
+                _animator.SetTrigger(_animIDDeathTrigger);
+            }
+        }
+
+        /// <summary>
         /// Sets the boolean parameter indicating if the character is grounded.
         /// </summary>
         /// <param name="isGrounded">True if the character is on the ground, false otherwise.</param>
         public void SetGrounded(bool isGrounded)
         {
-             if (_animator != null)
+            if (_animator != null)
             {
                 _animator.SetBool(_animIDGrounded, isGrounded);
             }
@@ -70,23 +146,35 @@ namespace Animation.AnimControllers
         /// </summary>
         public void TriggerJump()
         {
-             if (_animator != null)
+            if (_animator != null)
             {
-                _animator.SetTrigger(_animIDJump);
+                _animator.SetTrigger(_animIDJumpTrigger);
             }
         }
 
         /// <summary>
         /// Gets the underlying Animator component. Useful for advanced scenarios
-        /// like accessing state information directly (use with caution to maintain encapsulation).
+        /// like directly querying animation state names or lengths. Use with caution.
         /// </summary>
-        public Animator GetAnimator()
+        public Animator GetRawAnimator() // Renamed for clarity
         {
             return _animator;
         }
 
-        // --- Optional: Add methods for other parameters as needed ---
-        // public void SetSomeOtherParameter(float value) { ... }
-        // public void TriggerAnotherAction() { ... }
+        /// <summary>
+        /// Checks if the Animator is currently in a specific animation state.
+        /// Useful for preventing interruptions or redundant triggers.
+        /// </summary>
+        /// <param name="stateName">The name of the state to check (e.g., "Death", "Attack_Loop").</param>
+        /// <param name="layerIndex">The animator layer index (default is 0 for base layer).</param>
+        /// <returns>True if the Animator is currently in the specified state.</returns>
+        public bool IsInAnimationState(string stateName, int layerIndex = 0)
+        {
+            if (_animator != null)
+            {
+                return _animator.GetCurrentAnimatorStateInfo(layerIndex).IsName(stateName);
+            }
+            return false;
+        }
     }
 }

@@ -2,6 +2,8 @@
 using Animation.AnimControllers;
 using Characters.ExoGray.Scripts;
 using UnityEngine;
+using UnityEngine.Serialization;
+
 // For List if used, though original used array
 // Explicitly state for Random.Range
 // For IEnumerator (AttackSequence)
@@ -41,9 +43,10 @@ public class NPCController : MonoBehaviour
     private GameObject _currentLeftGunInstance;
 
     // --- Combat Logic (from NpcCombatController) ---
+    [FormerlySerializedAs("movementController")]
     [Header("Dependencies (Combat)")]
     [Tooltip("Reference to the movement controller to get range status.")]
-    [SerializeField] private AICharacterMovement movementController;
+    [SerializeField] private AIMovementSensor movementSensorController;
     [Tooltip("Reference to the character animator to trigger attack. This might be the same as the Unity Animator or a wrapper.")]
     [SerializeField] private CharacterAnimator characterAnimator;
 
@@ -73,7 +76,7 @@ public class NPCController : MonoBehaviour
         if (leftGunBone == null) Debug.LogWarning("NPCController: LeftGunBone not set. Left-handed weapons won't work.", this);
 
         // Combat dependencies validation (from NpcCombatController)
-        if (movementController == null)
+        if (movementSensorController == null)
         {
             Debug.LogError("NPCController: MovementController reference not set for combat logic.", this);
             // Not disabling the whole component, as weapon setup might still be useful.
@@ -106,9 +109,9 @@ public class NPCController : MonoBehaviour
     void OnEnable()
     {
         // Subscribe for combat logic
-        if (movementController != null)
+        if (movementSensorController != null)
         {
-            movementController.OnTargetInRangeStatusChanged += HandleTargetInRangeChanged;
+            movementSensorController.OnTargetInRangeStatusChanged += HandleTargetInRangeChanged;
             // Consider initial check:
             // _isTargetInAttackRange = movementController.IsTargetCurrentlyInRange(); // Hypothetical method
         }
@@ -117,9 +120,9 @@ public class NPCController : MonoBehaviour
     void OnDisable()
     {
         // Unsubscribe for combat logic
-        if (movementController != null)
+        if (movementSensorController != null)
         {
-            movementController.OnTargetInRangeStatusChanged -= HandleTargetInRangeChanged;
+            movementSensorController.OnTargetInRangeStatusChanged -= HandleTargetInRangeChanged;
         }
 
         // Clean up combat coroutine and state
@@ -128,7 +131,7 @@ public class NPCController : MonoBehaviour
             StopCoroutine(_attackCoroutine);
             if (characterAnimator != null && characterAnimator.gameObject.activeInHierarchy)
             {
-                 characterAnimator.SetAttack(false); // Ensure attack anim stops
+                 characterAnimator.SetAttacking(false); // Ensure attack anim stops
             }
             _isCurrentlyAttacking = false;
             _attackCoroutine = null;
@@ -204,7 +207,7 @@ public class NPCController : MonoBehaviour
             StopCoroutine(_attackCoroutine);
             if (characterAnimator != null && characterAnimator.gameObject.activeInHierarchy)
             {
-                characterAnimator.SetAttack(false);
+                characterAnimator.SetAttacking(false);
             }
             _isCurrentlyAttacking = false;
             _attackCoroutine = null;
@@ -223,7 +226,7 @@ public class NPCController : MonoBehaviour
     void Update()
     {
         // Only run combat update if logic is enabled (by FSM state) and dependencies are met
-        if (!_combatLogicEnabled || characterAnimator == null || movementController == null)
+        if (!_combatLogicEnabled || characterAnimator == null || movementSensorController == null)
         {
             return;
         }
@@ -240,7 +243,7 @@ public class NPCController : MonoBehaviour
         _lastAttackTime = Time.time;
 
         Debug.Log("NPCController: Starting Attack Sequence.");
-        characterAnimator.SetAttack(true); // Assumes CharacterAnimator handles this
+        characterAnimator.SetAttacking(true); // Assumes CharacterAnimator handles this
 
         // Wait for the duration of the attack animation
         // Consider using Animation Events from the animation itself for more precise timing
@@ -250,7 +253,7 @@ public class NPCController : MonoBehaviour
         // Check if combat is still enabled before stopping attack animation
         // (e.g. FSM might have transitioned out of attack state due to other reasons)
         if(_combatLogicEnabled) {
-            characterAnimator.SetAttack(false);
+            characterAnimator.SetAttacking(false);
         }
         Debug.Log("NPCController: Ending Attack Sequence.");
 

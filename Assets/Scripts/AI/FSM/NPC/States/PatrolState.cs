@@ -37,6 +37,7 @@ namespace AI.FSM.NPC.States
         }
 
         public void OnStateEnter()
+        
         {
             OnNpcPatrol?.Invoke();
             
