@@ -37,7 +37,7 @@ namespace AI.FSM.NPC
             NpcHealth = GetComponent<Health>();
             if (NpcHealth != null) {
                 NpcHealth.OnNpcDeath += NpcDead;
-                NpcHealth.OnHealthDepleted += HandleDamage; // Renamed for clarity
+                NpcHealth.OnHealthDepleted += HandleDamageTaken; // Renamed for clarity
             }
         }
 
@@ -45,7 +45,7 @@ namespace AI.FSM.NPC
         {
             if (NpcHealth != null) {
                 NpcHealth.OnNpcDeath -= NpcDead;
-                NpcHealth.OnHealthDepleted -= HandleDamage;
+                NpcHealth.OnHealthDepleted -= HandleDamageTaken;
             }
         }
 
@@ -114,7 +114,7 @@ namespace AI.FSM.NPC
         }
 
         // Renamed from TakeDamage in source to avoid confusion with Health.TakeHealth
-        private void HandleDamage(string victimTag, string attackerTag) // objTag parameter from original Health.OnHealthDepleted
+        private void HandleDamageTaken(string victimTag, string attackerTag) // objTag parameter from original Health.OnHealthDepleted
         {
             if (victimTag == gameObject.tag) // Ensure this event is for this NPC
             {
