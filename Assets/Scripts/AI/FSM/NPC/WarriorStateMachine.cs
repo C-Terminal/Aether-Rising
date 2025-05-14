@@ -20,13 +20,18 @@ namespace AI.FSM.NPC
         [Tooltip("Rotation speed when facing the player")] [SerializeField]
         private float rotSpeed = 2f;
 
+        // Add near other properties:
+        private Transform _playerInTriggerZoneCache; // Player transform from detector
+
         private IState startingState;
 
         // State & Component References
         public List<IState> states = new(); // Holds all state components attached
         public NPCController NpcController { get; private set; } // Reference to NPCController
         public Transform Player { get; private set; }
+
         public NavMeshAgent Agent { get; private set; }
+
         // public Animator Anim { get; private set; }
         public CharacterAnimator CharAnim { get; private set; } // New - assuming CharacterAnimator.cs exists
         public Health WarriorHealth { get; private set; } // Reference to the Health component
@@ -38,73 +43,63 @@ namespace AI.FSM.NPC
         public bool HasSpottedPlayer { get; set; } // Flag set by NPCManager/PlayerDetector
         public bool IsPlayerDead { get; set; } // Flag set based on Player health events
 
-    void Awake()
-    {
-        // Cache essential components
-        Player = GameObject.FindWithTag("Player")?.transform;
-        if (Player == null) Debug.LogError($"[{gameObject.name}] WarriorStateMachine: Player not found! Tag Player correctly.", this);
+        public bool IsDead => WarriorHealth != null && WarriorHealth.IsDead;
 
-        Agent = GetComponent<NavMeshAgent>();
-        if (Agent == null) Debug.LogError($"[{gameObject.name}] WarriorStateMachine: NavMeshAgent component not found!", this);
-
-        CharAnim = GetComponent<CharacterAnimator>();
-        if (CharAnim == null) Debug.LogError($"[{gameObject.name}] WarriorStateMachine: CharacterAnimator component not found!", this);
-
-        NpcController = GetComponent<NPCController>(); // Get the NPCController
-        if (NpcController == null) Debug.LogError($"[{gameObject.name}] WarriorStateMachine: NPCController component not found!", this);
-        
-        WarriorHealth = GetComponent<Health>();
-        if (WarriorHealth == null) Debug.LogError($"[{gameObject.name}] WarriorStateMachine: Health component not found!", this);
-
-        // Find and cache all IState components attached to this GameObject
-        states = GetComponents<IState>().ToList();
-        if (states == null || states.Count == 0)
+        private void Awake()
         {
-            Debug.LogError($"[{gameObject.name}] WarriorStateMachine: No IState components found!", this);
-            enabled = false; // Disable if no states
-            return;
-        }
+            // Cache essential components
+            Player = GameObject.FindWithTag("Player")?.transform;
+            if (Player == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: Player not found! Tag Player correctly.",
+                    this);
 
-        // Call InitReferences on states that need it, AFTER all core components on StateMachine are cached.
-        foreach (var state in states)
-        {
-            if (state is W_StrikeState strikeState) // Example for W_StrikeState
+            Agent = GetComponent<NavMeshAgent>();
+            if (Agent == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: NavMeshAgent component not found!", this);
+
+            CharAnim = GetComponent<CharacterAnimator>();
+            if (CharAnim == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: CharacterAnimator component not found!",
+                    this);
+
+            NpcController = GetComponent<NPCController>(); // Get the NPCController
+            if (NpcController == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: NPCController component not found!", this);
+
+            WarriorHealth = GetComponent<Health>();
+            if (WarriorHealth == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: Health component not found!", this);
+
+            // Find and cache all IState components attached to this GameObject
+            states = GetComponents<IState>().ToList();
+            if (states == null || states.Count == 0)
             {
-                strikeState.InitReferences(this);
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: No IState components found!", this);
+                enabled = false; // Disable if no states
+                return;
             }
+
+            //TODO: Call InitReferences on states that need it, AFTER all core components on StateMachine are cached.
+            foreach (var state in states)
+                if (state is W_StrikeState strikeState) // Example for W_StrikeState
+                    //TODO: maybe add this to the interface
+                    strikeState.InitReferences(this);
             // Add similar blocks if other states need an InitReferences method
             // e.g., if (state is W_PrepareAttackState prepareState) { prepareState.InitReferences(this); }
-        }
-
-
-        // Subscribe to Player death event (assuming Player also has a Health component)
-        if (Player != null)
-        {
-            Health playerHealth = Player.GetComponent<Health>();
-            if (playerHealth != null)
+            // Subscribe to Player death event (assuming Player also has a Health component)
+            if (Player != null)
             {
-                playerHealth.OnPlayerDeath += HandlePlayerDeath;
+                var playerHealth = Player.GetComponent<Health>();
+                if (playerHealth != null)
+                    playerHealth.OnPlayerDeath += HandlePlayerDeath;
+                else
+                    Debug.LogWarning(
+                        $"[{gameObject.name}] WarriorStateMachine: Player GameObject does not have a Health component for death subscription.",
+                        this);
             }
-            else Debug.LogWarning($"[{gameObject.name}] WarriorStateMachine: Player GameObject does not have a Health component for death subscription.", this);
         }
-    }
 
-    private void HandlePlayerDeath()
-    {
-        Debug.Log($"[{gameObject.name}] WarriorStateMachine: Player Died event received.");
-        IsPlayerDead = true;
-        // Logic to switch to non-aggressive state
-        if (CurrentState is ChaseState || CurrentState is AttackState || CurrentState is W_CirclingState || CurrentState is W_PrepareAttackState || CurrentState is W_StrikeState || CurrentState is W_RecoverState)
-        {
-            var nextState = FindFirstAvailableState(typeof(WanderState), typeof(IdleState));
-            if (nextState != null)
-                SwitchState(nextState);
-            else
-                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: No fallback state found after player death.");
-        }
-    }
-
-    private void Start()
+        private void Start()
         {
             // Find the Idle state as the default starting state
             startingState = FindState<IdleState>(); // Use generic FindState
@@ -147,20 +142,63 @@ namespace AI.FSM.NPC
             }
         }
 
+        private void HandlePlayerDeath()
+        {
+            Debug.Log($"[{gameObject.name}] WarriorStateMachine: Player Died event received.");
+            IsPlayerDead = true;
+            // Logic to switch to non-aggressive state
+            if (CurrentState is ChaseState || CurrentState is AttackState || CurrentState is W_CirclingState ||
+                CurrentState is W_PrepareAttackState || CurrentState is W_StrikeState || CurrentState is W_RecoverState)
+            {
+                var nextState = FindFirstAvailableState(typeof(WanderState), typeof(IdleState));
+                if (nextState != null)
+                    SwitchState(nextState);
+                else
+                    Debug.LogError(
+                        $"[{gameObject.name}] WarriorStateMachine: No fallback state found after player death.");
+            }
+        }
+
         // Events
         public static event Action<Vector3> OnPlayerSpotted; // Event for alerting NPCManager
 
         // --- Public Helper Methods ---
 
         // Checks if the player is within the defined viewing angle
-        public bool IsPlayerVisible()
+// Modify IsPlayerVisible to potentially use the cached player transform
+// if its main Player property isn't set or to ensure it's checking the correct target.
+        public bool IsPlayerVisible() // Consider adding: Transform targetToCheck
         {
-            if (Player == null) return false;
-            var npcToPlayerDir = Player.position - transform.position;
-            var angle = Vector3.Angle(transform.forward, npcToPlayerDir);
-            // Check if within the half-angle on either side
-            return angle < visibleChaseAngle / 2f;
-            // Potential Improvement: Add a Raycast check for line-of-sight obstacles
+            var target = _playerInTriggerZoneCache ?? Player; // Prioritize detector's cache if available
+
+            if (target == null || IsPlayerDead) return false;
+
+            var directionToTarget = target.position - transform.position;
+            var angle = Vector3.Angle(transform.forward, directionToTarget.normalized);
+
+            if (angle < visibleChaseAngle / 2f)
+            {
+                // Line of Sight Check
+                var distanceToTarget = directionToTarget.magnitude;
+                // Ensure raycast doesn't hit self by starting slightly in front or using a layer mask
+                var rayStart = transform.position + transform.up * Agent.height / 2f; // Approx eye level
+                RaycastHit hit;
+                // TODO: Define an obstacleLayerMask in WarriorStateMachine and pass it here
+                // For now, assuming default raycast behavior.
+                if (Physics.Raycast(rayStart, directionToTarget.normalized, out hit,
+                        distanceToTarget /*, obstacleLayerMask*/))
+                {
+                    if (hit.transform == target ||
+                        hit.transform.IsChildOf(target)) // Check if hit is player or part of player
+                        return true; // Direct line of sight
+                    // Debug.Log($"[{gameObject.name}] IsPlayerVisible: LOS blocked by {hit.collider.name}");
+                    return false; // Blocked by an obstacle
+                }
+
+                return true; // No obstacles in the way (should ideally only happen if distanceToTarget is very small)
+            }
+
+            return false;
         }
 
         // Smoothly rotates the NPC to face the player's position on the horizontal plane
@@ -190,6 +228,7 @@ namespace AI.FSM.NPC
                 if (state != null)
                     return state;
             }
+
             Debug.LogWarning($"[{gameObject.name}] WarriorStateMachine: None of the requested state types were found.");
             return null;
         }
@@ -254,7 +293,7 @@ namespace AI.FSM.NPC
         private void HandleDamageTaken(string victimTag, string attackerTag) // Added originTag for context
         {
             // Ignore if already dead or if damage is from self/another NPC (handled in MeleeWeaponDamage)
-            if (WarriorHealth.IsDead || CurrentState is DeathState) return;
+            if (IsDead || CurrentState is DeathState) return;
 
             Debug.Log(
                 $"[WarriorStateMachine - {gameObject.name}]: Took damage. Current Health: {WarriorHealth?.CurrentHealth}");
@@ -289,10 +328,99 @@ namespace AI.FSM.NPC
             }
         }
 
-        // Base StateMachine class might provide these:
-        // public IState CurrentState { get; private set; }
-        // public IState PreviousState { get; private set; }
-        public bool IsDead { get { return WarriorHealth != null && WarriorHealth.IsDead; } } // Or use Health's isDead flag
-        // public virtual void SwitchState(IState newState) { ... implementation ... }
+        // New methods to be called by PlayerDetector or its coroutine:
+
+        /// <summary>
+        ///     Called by PlayerDetector when the player enters or exits its trigger volume.
+        /// </summary>
+        public void NotifyPlayerInDetectionZone(bool isInZone, Transform playerTransformIfInZone)
+        {
+            // This method primarily informs the StateMachine about the player's presence
+            // in the wider detection area. The visibility check is separate.
+            if (isInZone)
+            {
+                _playerInTriggerZoneCache = playerTransformIfInZone;
+                // If the Player property was null, this is a good time to set it globally for the FSM
+                if (Player == null && playerTransformIfInZone != null)
+                {
+                    Player = playerTransformIfInZone; // Assuming Player property can be set
+                    Debug.Log(
+                        $"[{gameObject.name}] WarriorStateMachine: Player reference set via PlayerDetector to {Player.name}.");
+                }
+                // Current state might react to this, e.g., an Idle state might become more alert.
+            }
+            else
+            {
+                _playerInTriggerZoneCache = null;
+                // If HasSpottedPlayer was true, it's reset by PlayerDetector calling NPCManager.Unregister...
+                // The FSM might transition to Wander or Idle if it was chasing and player exits zone.
+                if (CurrentState is ChaseState || CurrentState is W_CirclingState ||
+                    CurrentState is W_PrepareAttackState || CurrentState is W_StrikeState)
+                {
+                    Debug.Log(
+                        $"[{gameObject.name}] WarriorStateMachine: Player left detection zone. Reverting to non-aggressive state.");
+                    SwitchState(FindFirstAvailableState(typeof(WanderState), typeof(IdleState)));
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Called by PlayerDetector's coroutine when detailed visibility check confirms player is visible.
+        ///     This is where the FSM decides to fully engage.
+        /// </summary>
+        public void ConfirmPlayerVisibilityAndEngage()
+        {
+            if (IsPlayerDead || IsDead) return;
+
+            // If not already actively engaging (chasing, attacking, circling etc.)
+            if (!(CurrentState is ChaseState ||
+                  CurrentState is AttackState || // Old attack state, if still used
+                  CurrentState is W_PrepareAttackState ||
+                  CurrentState is W_StrikeState ||
+                  CurrentState is W_RecoverState ||
+                  CurrentState is W_CirclingState))
+            {
+                Debug.Log(
+                    $"[{gameObject.name}] WarriorStateMachine: Player confirmed visible. Engaging - Switching to ChaseState.");
+                HasSpottedPlayer = true; // Mark self as spotted (NPCManager also sets this via Register)
+                // This flag is useful for states to know if initial contact was made.
+
+                AlertNearbyNPCs(); // Notify NPCManager and other NPCs
+
+                IState chaseState = FindState<ChaseState>();
+                if (chaseState != null)
+                    SwitchState(chaseState);
+                else
+                    Debug.LogError($"[{gameObject.name}] WarriorStateMachine: ChaseState not found to engage player!",
+                        this);
+            }
+            // If already in an engagement state, this call might just refresh awareness,
+            // or the current state's Update handles continued engagement.
+        }
+
+        /// <summary>
+        ///     Called by PlayerDetector's coroutine if player is in trigger zone but NOT visible (e.g., LoS broken).
+        /// </summary>
+        public void NotifyPlayerLostSight()
+        {
+            if (IsPlayerDead || IsDead) return;
+
+            // If currently in an active chase/attack/circle state, might switch to a "Search" or "Wander" state
+            // For now, let's assume if LOS is broken while in trigger, it might revert to Wander or a specific Search state.
+            if (CurrentState is ChaseState || CurrentState is W_CirclingState)
+            {
+                Debug.Log(
+                    $"[{gameObject.name}] WarriorStateMachine: Player sight lost (still in trigger). Switching to Wander/Search.");
+                // TODO: Implement a W_SearchState that moves towards last known player position
+                // For now, fallback to Wander.
+                IState wanderState = FindState<WanderState>();
+                if (wanderState != null)
+                    SwitchState(wanderState);
+                else
+                    SwitchState(FindState<IdleState>()); // Fallback
+            }
+            // HasSpottedPlayer remains true because the NPC is still "aware" and in combat mode,
+            // just lost immediate sight. NPCManager registration also remains.
+        }
     }
 }

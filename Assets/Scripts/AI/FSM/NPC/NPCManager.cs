@@ -21,22 +21,22 @@ namespace AI.FSM.NPC
         public List<WarriorStateMachine> npcsInLevel = new List<WarriorStateMachine>();
 
         // Singleton instance
-        private static NPCManager instance;
+        private static NPCManager _instance;
         public static NPCManager Instance
         {
             get
             {
-                if (instance == null)
+                if (_instance == null)
                 {
                     // Find existing instance or create a new one if not found
-                    instance = FindObjectOfType<NPCManager>();
-                    if (instance == null)
+                    _instance = FindObjectOfType<NPCManager>();
+                    if (_instance == null)
                     {
                         GameObject go = new GameObject("NPCManager");
-                        instance = go.AddComponent<NPCManager>();
+                        _instance = go.AddComponent<NPCManager>();
                     }
                 }
-                return instance;
+                return _instance;
             }
         }
 
@@ -47,12 +47,12 @@ namespace AI.FSM.NPC
         void Awake()
         {
             // Enforce Singleton pattern
-            if (instance == null)
+            if (_instance == null)
             {
-                instance = this;
+                _instance = this;
                 // DontDestroyOnLoad(gameObject); // Optional: if manager needs to persist across scenes
             }
-            else if (instance != this)
+            else if (_instance != this)
             {
                 Destroy(gameObject);
                 return;

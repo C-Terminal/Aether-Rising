@@ -25,10 +25,8 @@ namespace AI.FSM.NPC.States
 
         // Events for external systems like animation/audio
         public event Action OnNpcDeath;
-        //TODO: implement item drops
         public event Action<GameObject> OnNpcItemDrop;
 
-        //TODO: Make this the interface instead so i can use multiple FSMs
         private NPCStateMachine stateMachine;
         private bool isDead = false;
         private AudioSource audioSource;
