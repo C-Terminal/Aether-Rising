@@ -35,7 +35,7 @@ namespace AI.FSM.NPC.States
         public event Action OnNpcTakingCover;
         public event Action OnNpcPeeking;
 
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private float coverTimer = 0f;
         private float totalCoverTime = 0f;
@@ -47,8 +47,8 @@ namespace AI.FSM.NPC.States
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[CoverState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>();
+            if (_stateMachineNew == null) Debug.LogError($"[CoverState - {gameObject.name}] : NPCStateMachine not found.");
             
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[CoverState - {gameObject.name}] : No NavMesh Agent found.");
@@ -105,8 +105,8 @@ namespace AI.FSM.NPC.States
             }
             
             // Check if health has recovered enough to potentially return to normal
-            if (stateMachine.NpcHealth != null && 
-                stateMachine.NpcHealth.CurrentHealth > healthRecoveryThreshold &&
+            if (_stateMachineNew.NpcHealth != null && 
+                _stateMachineNew.NpcHealth.CurrentHealth > healthRecoveryThreshold &&
                 !isPeeking && inCoverPosition)
             {
                 if (UnityEngine.Random.value < returnToNormalChance * (coverTimer / timeInCover))
@@ -125,7 +125,7 @@ namespace AI.FSM.NPC.States
                 inCoverPosition = true;
                 
                 // Orient to face away from player (behind cover)
-                if (stateMachine.Player != null)
+                if (_stateMachineNew.Player != null)
                 {
                     OrientBehindCover();
                 }
@@ -147,8 +147,8 @@ namespace AI.FSM.NPC.States
             }
             
             // If player gets too close to cover, find new cover
-            if (inCoverPosition && stateMachine.Player != null && 
-                Vector3.Distance(transform.position, stateMachine.Player.position) < minDistanceFromPlayer)
+            if (inCoverPosition && _stateMachineNew.Player != null && 
+                Vector3.Distance(transform.position, _stateMachineNew.Player.position) < minDistanceFromPlayer)
             {
                 Debug.Log("CoverState: Player too close, finding new cover");
                 bool foundNewCover = FindCoverPosition(out Vector3 newCoverPos, out Vector3 newCoverNormal);
@@ -163,7 +163,7 @@ namespace AI.FSM.NPC.States
                 else
                 {
                     // If no new cover found, fight or flee
-                    if (stateMachine.NpcHealth.CurrentHealth > healthRecoveryThreshold * 0.7f)
+                    if (_stateMachineNew.NpcHealth.CurrentHealth > healthRecoveryThreshold * 0.7f)
                     {
                         Debug.Log("CoverState: No new cover available and health OK, engaging player");
                         EngagePlayer();
@@ -196,14 +196,14 @@ namespace AI.FSM.NPC.States
             bestCoverPos = transform.position;
             coverNormal = Vector3.zero;
             
-            if (stateMachine.Player == null) return false;
+            if (_stateMachineNew.Player == null) return false;
             
             // Start with a failed result
             bool foundCover = false;
             float bestCoverScore = 0f;
             
             // Get player position for reference
-            Vector3 playerPos = stateMachine.Player.position;
+            Vector3 playerPos = _stateMachineNew.Player.position;
             
             // Create a list of potential cover points to check
             List<Vector3> potentialCoverPoints = GeneratePotentialCoverPoints();
@@ -316,10 +316,10 @@ namespace AI.FSM.NPC.States
         
         private void OrientBehindCover()
         {
-            if (stateMachine.Player == null) return;
+            if (_stateMachineNew.Player == null) return;
             
             // Orient to face away from player, using cover normal as reference
-            Vector3 toPlayer = stateMachine.Player.position - transform.position;
+            Vector3 toPlayer = _stateMachineNew.Player.position - transform.position;
             toPlayer.y = 0;
             
             // If we have a valid cover normal, use it for orientation
@@ -355,9 +355,9 @@ namespace AI.FSM.NPC.States
             OnNpcPeeking?.Invoke();
             
             // Turn to face the player for peeking
-            if (stateMachine.Player != null)
+            if (_stateMachineNew.Player != null)
             {
-                Vector3 toPlayer = stateMachine.Player.position - transform.position;
+                Vector3 toPlayer = _stateMachineNew.Player.position - transform.position;
                 toPlayer.y = 0;
                 Quaternion peekRotation = Quaternion.LookRotation(toPlayer.normalized);
                 transform.rotation = Quaternion.Slerp(transform.rotation, peekRotation, 0.8f);
@@ -368,17 +368,17 @@ namespace AI.FSM.NPC.States
             
             // Based on situation, decide next action
             // Check if player is visible/attackable during peek
-            if (stateMachine.IsPlayerVisible())
+            if (_stateMachineNew.IsPlayerVisible())
             {
                 // Player visible, decide whether to attack or stay in cover
                 float healthPercentage = 0f;
-                if (stateMachine.NpcHealth != null)
+                if (_stateMachineNew.NpcHealth != null)
                 {
-                    healthPercentage = stateMachine.NpcHealth.CurrentHealth / 100f; // Assuming max health is 100
+                    healthPercentage = _stateMachineNew.NpcHealth.CurrentHealth / 100f; // Assuming max health is 100
                 }
                 
                 // If player is attackable and NPC has moderate health, engage
-                if (stateMachine.IsPlayerAttackable() && healthPercentage > 0.4f)
+                if (_stateMachineNew.IsPlayerAttackable() && healthPercentage > 0.4f)
                 {
                     Debug.Log("CoverState: Player visible during peek, engaging");
                     EngagePlayer();
@@ -412,27 +412,27 @@ namespace AI.FSM.NPC.States
             IState nextState = null;
             
             // If player is visible, go to chase state
-            if (stateMachine.IsPlayerVisible())
+            if (_stateMachineNew.IsPlayerVisible())
             {
-                nextState = stateMachine.states.Find(s => s.GetType().Name == "ChaseState");
+                nextState = _stateMachineNew.states.Find(s => s.GetType().Name == "ChaseState");
                 if (nextState == null)
                 {
-                    nextState = stateMachine.states.Find(s => s.GetType().Name == "IdleState");
+                    nextState = _stateMachineNew.states.Find(s => s.GetType().Name == "IdleState");
                 }
             }
             else
             {
                 // If player not visible, go to patrol or idle state
-                nextState = stateMachine.states.Find(s => s.GetType().Name == "PatrolState");
+                nextState = _stateMachineNew.states.Find(s => s.GetType().Name == "PatrolState");
                 if (nextState == null)
                 {
-                    nextState = stateMachine.states.Find(s => s.GetType().Name == "IdleState");
+                    nextState = _stateMachineNew.states.Find(s => s.GetType().Name == "IdleState");
                 }
             }
             
             if (nextState != null)
             {
-                stateMachine.SwitchState(nextState);
+                _stateMachineNew.SwitchState(nextState);
             }
             else
             {
@@ -444,10 +444,10 @@ namespace AI.FSM.NPC.States
         {
             Debug.Log("CoverState: Retreating from player");
             
-            if (stateMachine.Player == null || agent == null) return;
+            if (_stateMachineNew.Player == null || agent == null) return;
             
             // Find a direction away from the player
-            Vector3 dirAwayFromPlayer = transform.position - stateMachine.Player.position;
+            Vector3 dirAwayFromPlayer = transform.position - _stateMachineNew.Player.position;
             dirAwayFromPlayer.y = 0; // Keep it on horizontal plane
             dirAwayFromPlayer = dirAwayFromPlayer.normalized;
             
@@ -479,7 +479,7 @@ namespace AI.FSM.NPC.States
                 else
                 {
                     // Last resort - try to engage or find a random point
-                    if (stateMachine.NpcHealth.CurrentHealth > healthRecoveryThreshold * 0.4f)
+                    if (_stateMachineNew.NpcHealth.CurrentHealth > healthRecoveryThreshold * 0.4f)
                     {
                         EngagePlayer();
                     }
@@ -503,25 +503,25 @@ namespace AI.FSM.NPC.States
             Debug.Log("CoverState: Engaging player");
             
             // Find and switch to attack or chase state
-            IState attackState = stateMachine.states.Find(s => s.GetType().Name == "AttackState");
+            IState attackState = _stateMachineNew.states.Find(s => s.GetType().Name == "AttackState");
             if (attackState != null)
             {
-                stateMachine.SwitchState(attackState);
+                _stateMachineNew.SwitchState(attackState);
                 return;
             }
             
-            IState chaseState = stateMachine.states.Find(s => s.GetType().Name == "ChaseState");
+            IState chaseState = _stateMachineNew.states.Find(s => s.GetType().Name == "ChaseState");
             if (chaseState != null)
             {
-                stateMachine.SwitchState(chaseState);
+                _stateMachineNew.SwitchState(chaseState);
                 return;
             }
             
             // If no attack or chase state found, default to idle
-            IState idleState = stateMachine.states.Find(s => s.GetType().Name == "IdleState");
+            IState idleState = _stateMachineNew.states.Find(s => s.GetType().Name == "IdleState");
             if (idleState != null)
             {
-                stateMachine.SwitchState(idleState);
+                _stateMachineNew.SwitchState(idleState);
             }
             else
             {

@@ -22,14 +22,14 @@ namespace AI.FSM.NPC.States
         public event Action OnNpcHit;
         public event Action OnNpcHitRecover;
 
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
         private IState returnState; // The state to return to after hit reaction
         private float hitTimer = 0f;
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[HitState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>();
+            if (_stateMachineNew == null) Debug.LogError($"[HitState - {gameObject.name}] : NPCStateMachine not found.");
         }
 
         public void OnStateEnter()
@@ -38,16 +38,16 @@ namespace AI.FSM.NPC.States
 
             // Store the previous state to return to after hit reaction
             // If previous state was another Hit or Death, don't go back to those
-            if (stateMachine.PreviousState != null && 
-                stateMachine.PreviousState.GetType() != typeof(HitState) &&
-                stateMachine.PreviousState.GetType() != typeof(DeathState))
+            if (_stateMachineNew.PreviousState != null && 
+                _stateMachineNew.PreviousState.GetType() != typeof(HitState) &&
+                _stateMachineNew.PreviousState.GetType() != typeof(DeathState))
             {
-                returnState = stateMachine.PreviousState;
+                returnState = _stateMachineNew.PreviousState;
             }
             else
             {
                 // Default to IdleState if no valid previous state
-                returnState = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
+                returnState = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
             }
             
             // Trigger hit animation/effect
@@ -75,9 +75,9 @@ namespace AI.FSM.NPC.States
             }
             
             // While recovering, still check if player is attacking
-            if (stateMachine.IsPlayerAttackable() && hitTimer >= hitReactionDuration * 0.5f)
+            if (_stateMachineNew.IsPlayerAttackable() && hitTimer >= hitReactionDuration * 0.5f)
             {
-                float chance = stateMachine.NpcHealth.CurrentHealth < lowHealthThreshold ? 
+                float chance = _stateMachineNew.NpcHealth.CurrentHealth < lowHealthThreshold ? 
                     aggressiveResponseChance * 0.5f : aggressiveResponseChance;
                     
                 if (Random.value < chance)
@@ -99,18 +99,18 @@ namespace AI.FSM.NPC.States
         private void RecoverFromHit()
         {
             // Decision making based on health level
-            if (stateMachine.NpcHealth != null && 
-                stateMachine.NpcHealth.CurrentHealth < lowHealthThreshold)
+            if (_stateMachineNew.NpcHealth != null && 
+                _stateMachineNew.NpcHealth.CurrentHealth < lowHealthThreshold)
             {
                 // Low health behavior
                 if (Random.value < fleeChanceWhenLowHealth)
                 {
                     // Try to find cover
-                    IState coverState = stateMachine.states.Find(s => s.GetType() == typeof(CoverState));
+                    IState coverState = _stateMachineNew.states.Find(s => s.GetType() == typeof(CoverState));
                     if (coverState != null)
                     {
                         Debug.Log("HitState: Low health, taking cover");
-                        stateMachine.SwitchState(coverState);
+                        _stateMachineNew.SwitchState(coverState);
                         return;
                     }
                     
@@ -122,27 +122,27 @@ namespace AI.FSM.NPC.States
             }
             
             // If player is visible, decide between attacking or chasing
-            if (stateMachine.IsPlayerVisible())
+            if (_stateMachineNew.IsPlayerVisible())
             {
-                if (stateMachine.IsPlayerAttackable())
+                if (_stateMachineNew.IsPlayerAttackable())
                 {
                     // Player is in attack range
-                    IState attackState = stateMachine.states.Find(s => s.GetType() == typeof(AttackState));
+                    IState attackState = _stateMachineNew.states.Find(s => s.GetType() == typeof(AttackState));
                     if (attackState != null)
                     {
                         Debug.Log("HitState: Player in range, counter-attacking");
-                        stateMachine.SwitchState(attackState);
+                        _stateMachineNew.SwitchState(attackState);
                         return;
                     }
                 }
                 else
                 {
                     // Player is visible but not in attack range
-                    IState chaseState = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
+                    IState chaseState = _stateMachineNew.states.Find(s => s.GetType() == typeof(ChaseState));
                     if (chaseState != null)
                     {
                         Debug.Log("HitState: Player spotted, giving chase");
-                        stateMachine.SwitchState(chaseState);
+                        _stateMachineNew.SwitchState(chaseState);
                         return;
                     }
                 }
@@ -152,16 +152,16 @@ namespace AI.FSM.NPC.States
             if (returnState != null)
             {
                 Debug.Log($"HitState: Returning to previous state {returnState.GetType().Name}");
-                stateMachine.SwitchState(returnState);
+                _stateMachineNew.SwitchState(returnState);
             }
             else
             {
                 // Fallback to Idle as a last resort
-                IState idleState = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
+                IState idleState = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
                 if (idleState != null)
                 {
                     Debug.Log("HitState: No return state, reverting to Idle");
-                    stateMachine.SwitchState(idleState);
+                    _stateMachineNew.SwitchState(idleState);
                 }
             }
         }
@@ -171,18 +171,18 @@ namespace AI.FSM.NPC.States
             Debug.Log("HitState: Interrupting hit reaction to counter-attack");
             
             // Force immediate recovery and counterattack
-            IState attackState = stateMachine.states.Find(s => s.GetType() == typeof(AttackState));
+            IState attackState = _stateMachineNew.states.Find(s => s.GetType() == typeof(AttackState));
             if (attackState != null)
             {
-                stateMachine.SwitchState(attackState);
+                _stateMachineNew.SwitchState(attackState);
             }
             else
             {
                 // Fallback to chase if attack isn't available
-                IState chaseState = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
+                IState chaseState = _stateMachineNew.states.Find(s => s.GetType() == typeof(ChaseState));
                 if (chaseState != null)
                 {
-                    stateMachine.SwitchState(chaseState);
+                    _stateMachineNew.SwitchState(chaseState);
                 }
             }
         }
@@ -191,10 +191,10 @@ namespace AI.FSM.NPC.States
         {
             // Simple fleeing implementation - could be expanded to a full FleeState
             var agent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-            if (agent != null && agent.enabled && stateMachine.Player != null)
+            if (agent != null && agent.enabled && _stateMachineNew.Player != null)
             {
                 // Calculate direction away from player
-                Vector3 fleeDirection = transform.position - stateMachine.Player.position;
+                Vector3 fleeDirection = transform.position - _stateMachineNew.Player.position;
                 fleeDirection.y = 0; // Keep horizontal
                 fleeDirection = fleeDirection.normalized;
                 
@@ -215,11 +215,11 @@ namespace AI.FSM.NPC.States
                 else
                 {
                     // If can't find flee point, return to idle
-                    IState idleState = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
+                    IState idleState = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
                     if (idleState != null)
                     {
                         Debug.Log("HitState: Cannot find flee path, reverting to Idle");
-                        stateMachine.SwitchState(idleState);
+                        _stateMachineNew.SwitchState(idleState);
                     }
                 }
             }
@@ -240,11 +240,11 @@ namespace AI.FSM.NPC.States
             }
             
             // Return to idle state after fleeing
-            IState idleState = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
-            if (idleState != null && stateMachine.CurrentState == this)
+            IState idleState = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
+            if (idleState != null && _stateMachineNew.CurrentState == this)
             {
                 Debug.Log("HitState: Flee complete, returning to Idle");
-                stateMachine.SwitchState(idleState);
+                _stateMachineNew.SwitchState(idleState);
             }
         }
 

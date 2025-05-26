@@ -1,6 +1,8 @@
 ﻿using System.Collections;
+using AI.FSM;
 using AI.FSM.NPC;
 using UnityEngine;
+
 
 // Required for IEnumerator
 
@@ -20,15 +22,15 @@ namespace AI.Perception.NPC
         [Tooltip("Tag of the player GameObject.")]
         [SerializeField] private string playerTag = "Player";
 
-        private WarriorStateMachine _stateMachine; // Reference to the parent NPC's StateMachine
+        private WarriorStateMachine _stateMachineNewNew; // Reference to the parent NPC's StateMachine
         private Coroutine _visibilityCheckCoroutine;
         private bool _isPlayerInTriggerZone = false;
         private Transform _playerTransformCache; // Cache player transform when in zone
 
         void Awake()
         {
-            _stateMachine = GetComponentInParent<WarriorStateMachine>();
-            if (_stateMachine == null)
+            _stateMachineNewNew = GetComponentInParent<WarriorStateMachine>();
+            if (_stateMachineNewNew == null)
             {
                 Debug.LogError($"[{gameObject.name}] PlayerDetector: WarriorStateMachine not found on parent or self! Detection will not work.", this);
                 enabled = false;
@@ -52,10 +54,10 @@ namespace AI.Perception.NPC
         {
             if (other.CompareTag(playerTag))
             {
-                Debug.Log($"[{_stateMachine.gameObject.name}'s PlayerDetector]: Player '{other.name}' ENTERED trigger zone.");
+                Debug.Log($"[{_stateMachineNewNew.gameObject.name}'s PlayerDetector]: Player '{other.name}' ENTERED trigger zone.");
                 _isPlayerInTriggerZone = true;
                 _playerTransformCache = other.transform; // Cache for visibility checks
-                _stateMachine.NotifyPlayerInDetectionZone(true, _playerTransformCache);
+                _stateMachineNewNew.NotifyPlayerInDetectionZone(true, _playerTransformCache);
 
 
                 // Start checking for actual visibility if not already doing so
@@ -70,19 +72,19 @@ namespace AI.Perception.NPC
         {
             if (other.CompareTag(playerTag))
             {
-                Debug.Log($"[{_stateMachine.gameObject.name}'s PlayerDetector]: Player '{other.name}' EXITED trigger zone.");
+                Debug.Log($"[{_stateMachineNewNew.gameObject.name}'s PlayerDetector]: Player '{other.name}' EXITED trigger zone.");
                 _isPlayerInTriggerZone = false;
                 _playerTransformCache = null;
-                _stateMachine.NotifyPlayerInDetectionZone(false, null);
+                _stateMachineNewNew.NotifyPlayerInDetectionZone(false, null);
 
 
                 // If the NPC was registered as "in range" with NPCManager, unregister it.
                 // This happens regardless of visibility, as they are out of the broad detection zone.
-                if (NPCManager.Instance != null && _stateMachine.HasSpottedPlayer) // Check HasSpottedPlayer to see if it was ever registered
+                if (NPCManager.Instance != null && _stateMachineNewNew.HasSpottedPlayer) // Check HasSpottedPlayer to see if it was ever registered
                 {
-                    NPCManager.Instance.UnregisterOutOfRangeNpc(_stateMachine);
+                    NPCManager.Instance.UnregisterOutOfRangeNpc(_stateMachineNewNew);
                 }
-                _stateMachine.HasSpottedPlayer = false; // Reset this flag on the state machine
+                _stateMachineNewNew.HasSpottedPlayer = false; // Reset this flag on the state machine
 
                 // Stop the visibility check coroutine
                 if (_visibilityCheckCoroutine != null)
@@ -98,7 +100,7 @@ namespace AI.Perception.NPC
             // Debug.Log($"[{_stateMachine.gameObject.name}'s PlayerDetector]: Starting visibility checks.");
             while (_isPlayerInTriggerZone)
             {
-                if (_stateMachine.Player == null && _playerTransformCache != null)
+                if (_stateMachineNewNew.Player == null && _playerTransformCache != null)
                 {
                     // If state machine's player ref is null (e.g. on first spot), set it.
                     // This assumes WarriorStateMachine.Player can be set or is primarily for read by states.
@@ -108,14 +110,14 @@ namespace AI.Perception.NPC
                 // Ask the state machine to perform its detailed visibility check
                 // The WarriorStateMachine.IsPlayerVisible() should ideally take the target as a parameter
                 // or use its internally set Player transform (which PlayerDetector can help set).
-                bool canSeePlayer = _stateMachine.IsPlayerVisible(); // This method should use _playerTransformCache or stateMachine.Player
+                bool canSeePlayer = _stateMachineNewNew.IsPlayerVisible(); // This method should use _playerTransformCache or stateMachine.Player
 
                 if (canSeePlayer)
                 {
                     // If player is visible AND this NPC wasn't previously marked as spotting the player (for NPCManager registration)
-                    if (!_stateMachine.HasSpottedPlayer && NPCManager.Instance != null)
+                    if (!_stateMachineNewNew.HasSpottedPlayer && NPCManager.Instance != null)
                     {
-                        NPCManager.Instance.RegisterInRangeNpc(_stateMachine);
+                        NPCManager.Instance.RegisterInRangeNpc(_stateMachineNewNew);
                         // _stateMachine.HasSpottedPlayer is set to true by NPCManager.RegisterInRangeNpc
                         // No need to call stateMachine.AlertNearbyNPCs() here, that's usually done
                         // by the state machine itself once it decides to transition to an aggressive state (e.g. Chase)
@@ -125,14 +127,14 @@ namespace AI.Perception.NPC
                     // This logic is typically within the WarriorStateMachine's current state (e.g. Idle or Wander update)
                     // reacting to _stateMachine.HasSpottedPlayer or a direct notification.
                     // For example, WarriorStateMachine could have a method: OnPlayerConfirmedVisible()
-                    _stateMachine.ConfirmPlayerVisibilityAndEngage();
+                    _stateMachineNewNew.ConfirmPlayerVisibilityAndEngage();
 
 
                 }
                 else
                 {
                     // If player was previously spotted (registered with NPCManager) but is no longer visible (e.g. behind obstacle)
-                    if (_stateMachine.HasSpottedPlayer && NPCManager.Instance != null)
+                    if (_stateMachineNewNew.HasSpottedPlayer && NPCManager.Instance != null)
                     {
                         // Option: Do we unregister from NPCManager immediately if LOS is broken but still in trigger?
                         // For "free-flow" combat, often NPCs remain "in combat" and aware if player is in zone but temporarily hidden.
@@ -140,7 +142,7 @@ namespace AI.Perception.NPC
                         // Let's assume for now they remain registered with NPCManager as long as in trigger and initially spotted.
                         // Unregistration primarily happens on OnTriggerExit.
                         // However, the StateMachine itself should react (e.g. switch from Chase to Search/Wander)
-                        _stateMachine.NotifyPlayerLostSight(); // Inform state machine player is not visible right now
+                        _stateMachineNewNew.NotifyPlayerLostSight(); // Inform state machine player is not visible right now
                     }
                 }
                 yield return new WaitForSeconds(visibilityCheckInterval);
@@ -158,9 +160,9 @@ namespace AI.Perception.NPC
                 _visibilityCheckCoroutine = null;
             }
             // If it was tracking the player, ensure it's unregistered
-            if (_isPlayerInTriggerZone && NPCManager.Instance != null && _stateMachine != null && _stateMachine.HasSpottedPlayer)
+            if (_isPlayerInTriggerZone && NPCManager.Instance != null && _stateMachineNewNew != null && _stateMachineNewNew.HasSpottedPlayer)
             {
-                NPCManager.Instance.UnregisterOutOfRangeNpc(_stateMachine);
+                NPCManager.Instance.UnregisterOutOfRangeNpc(_stateMachineNewNew);
             }
         }
     }

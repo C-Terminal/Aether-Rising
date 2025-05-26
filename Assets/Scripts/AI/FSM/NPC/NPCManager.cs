@@ -140,7 +140,7 @@ namespace AI.FSM.NPC
         public bool IsAnyNPCAttacking()
         {
             // Also check if the current attacker is still valid (e.g., not dead, still in range)
-            if (currentAttackingNPC != null && currentAttackingNPC.enabled && npcsInRange.Contains(currentAttackingNPC) && !currentAttackingNPC.IsDead)
+            if (currentAttackingNPC != null && currentAttackingNPC.enabled && npcsInRange.Contains(currentAttackingNPC) && !currentAttackingNPC.IsSelfDead)
             {
                 return true;
             }
@@ -169,13 +169,13 @@ namespace AI.FSM.NPC
         }
 
         // Allows retrieval of the currently designated attacker (e.g., by CirclingState)
-        public WarriorStateMachine GetAttackingNPC()
+        public FSM.StateMachineNew GetAttackingNPC()
         {
             return currentAttackingNPC;
         }
 
         // Called by AttackState/RetreatState when the attack sequence finishes or is interrupted
-        public void ClearAttackingNPC(WarriorStateMachine npc)
+        public void ClearAttackingNPC(FSM.StateMachineNew npc)
         {
             if (currentAttackingNPC == npc)
             {
@@ -197,7 +197,7 @@ namespace AI.FSM.NPC
                 var eligibleNPCs = npcsInRange.FindAll(npc =>
                         npc != null &&
                         npc.enabled &&
-                        !npc.IsDead &&
+                        !npc.IsSelfDead &&
                         (npc.CurrentState is W_CirclingState || npc.CurrentState is ChaseState) // Example: Only allow circling/chasing NPCs to be selected
                 );
                 if (eligibleNPCs.Count > 0)

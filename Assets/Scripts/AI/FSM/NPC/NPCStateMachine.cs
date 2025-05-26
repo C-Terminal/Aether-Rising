@@ -4,14 +4,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using AI.FSM.NPC.States;
+using Animation.AnimControllers;
+using Characters.NPC;
 using Combat.DamageSystem.Health;
 using UnityEngine;
+using UnityEngine.AI;
 
 // For Action
 
 namespace AI.FSM.NPC
 {
-    public class NPCStateMachine : StateMachine
+    public class NpcStateMachine : StateMachineNew
     {
         [Tooltip("NPC's distance from Player to begin Chase.")]
         [SerializeField] private float visibleChaseDistance = 15f;
@@ -27,8 +30,17 @@ namespace AI.FSM.NPC
         // private bool isPlayerDead; // Example of shared data
 
         // Properties for states to access
-        public Transform Player => player;
-        public Health NpcHealth { get; private set; } // Assuming Health component is present
+        public override Transform Player
+        {
+            get => player;
+            set => player = value;
+        }
+
+        public override NavMeshAgent Agent { get; set; }
+        public override CharacterAnimator CharAnim { get; set; }
+        public override NPCController NpcCtrl { get; }
+        public override Health NpcHealth { get;  set; } // Assuming Health component is present
+        public override NPCController NpcController { get; set; }
         public IState CurrentState { get; private set; }
 
         // Event subscriptions for health changes
@@ -77,7 +89,7 @@ namespace AI.FSM.NPC
         }
 
         // Commonly used Methods that can be accessed from any State
-        public bool IsPlayerVisible()
+        public override bool IsPlayerVisible()
         {
             if (player == null) return false;
             Vector3 npcToPlayerDir = player.position - this.transform.position;
@@ -90,14 +102,14 @@ namespace AI.FSM.NPC
             return false;
         }
 
-        public bool IsPlayerAttackable()
+        public override bool IsPlayerAttackable()
         {
             if (player == null) return false;
             Vector3 npcToPlayerDir = player.position - this.transform.position;
             return npcToPlayerDir.magnitude < attackDistance;
         }
 
-        public void RotateToFacePlayer()
+        public override void RotateToFacePlayer()
         {
             if (player == null) return;
             Vector3 npcToPlayerDir = player.position - this.transform.position;

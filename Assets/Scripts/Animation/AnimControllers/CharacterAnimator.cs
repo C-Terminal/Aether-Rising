@@ -31,6 +31,11 @@ namespace Animation.AnimControllers
         // New parameters for movement locomotion blend and backward movement
         private readonly int _animIDLocomotionBlend = Animator.StringToHash("LocomotionBlend");
         private readonly int _animIDBackwardMovement = Animator.StringToHash("BackwardMovement");
+        
+        // Add to CharacterAnimator.cs
+        private readonly int _animIDSpeedForward = Animator.StringToHash("SpeedForward");
+        private readonly int _animIDSpeedSideways = Animator.StringToHash("SpeedSideways");
+        private readonly int _animIDTelegraph = Animator.StringToHash("Telegraph");
 
         private void Awake()
         {
@@ -190,6 +195,23 @@ namespace Animation.AnimControllers
         public Animator GetRawAnimator() // Renamed for clarity
         {
             return _animator;
+        }
+        
+        public void SetLocomotionDirection(float forwardAmount, float sidewaysAmount)
+        {
+            if (_animator != null)
+            {
+                _animator.SetFloat(_animIDSpeedForward, forwardAmount);
+                _animator.SetFloat(_animIDSpeedSideways, sidewaysAmount);
+            }
+        }
+
+        public void SetTelegraphing(bool isTelegraphing)
+        {
+            if (_animator != null)
+            {
+                _animator.SetBool(_animIDTelegraph, isTelegraphing);
+            }
         }
 
         /// <summary>

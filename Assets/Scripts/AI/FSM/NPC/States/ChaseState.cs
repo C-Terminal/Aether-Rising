@@ -15,12 +15,12 @@ namespace AI.FSM.NPC.States
         private AIMovementSensor movementSensor;
         private IState previousStateBeforeChase; // Store the state before entering chase
         private Transform playerTarget;
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
 
         private void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>(); // Assuming NPCStateMachine is on the same GameObject
-            if (stateMachine == null) Debug.LogError($"[ChaseState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>(); // Assuming NPCStateMachine is on the same GameObject
+            if (_stateMachineNew == null) Debug.LogError($"[ChaseState - {gameObject.name}] : NPCStateMachine not found.");
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[ChaseState - {gameObject.name}] : No NavMesh Agent found.");
             movementSensor = GetComponent<AIMovementSensor>();
@@ -28,7 +28,7 @@ namespace AI.FSM.NPC.States
 
         public void OnStateEnter()
         {
-            movementSensor.SetTarget(stateMachine.Player);
+            movementSensor.SetTarget(_stateMachineNew.Player);
             if (agent != null && agent.enabled)
             {
                 agent.speed = npcSpeed;
@@ -39,44 +39,44 @@ namespace AI.FSM.NPC.States
             Debug.Log("ChaseState: Enter");
 
             // Store the state from which we entered Chase, unless it was Chase itself or Attack
-            if (stateMachine.PreviousState != null &&
-                stateMachine.PreviousState.GetType() != typeof(ChaseState) &&
-                stateMachine.PreviousState.GetType() != typeof(AttackState))
-                previousStateBeforeChase = stateMachine.PreviousState;
+            if (_stateMachineNew.PreviousState != null &&
+                _stateMachineNew.PreviousState.GetType() != typeof(ChaseState) &&
+                _stateMachineNew.PreviousState.GetType() != typeof(AttackState))
+                previousStateBeforeChase = _stateMachineNew.PreviousState;
         }
 
         public void OnStateUpdate(float deltaTime)
         {
-            if (!stateMachine.IsPlayerVisible())
+            if (!_stateMachineNew.IsPlayerVisible())
             {
                 // Player lost, revert to previous relevant state (e.g., Patrol or Wander)
                 if (previousStateBeforeChase != null)
                 {
-                    stateMachine.SwitchState(previousStateBeforeChase);
+                    _stateMachineNew.SwitchState(previousStateBeforeChase);
                 }
                 else // Fallback to Idle or a default state if previous is not set
                 {
-                    var idle = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
-                    if (idle != null) stateMachine.SwitchState(idle);
+                    var idle = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
+                    if (idle != null) _stateMachineNew.SwitchState(idle);
                 }
 
                 return;
             }
 
-            if (agent != null && agent.enabled && stateMachine.Player != null)
+            if (agent != null && agent.enabled && _stateMachineNew.Player != null)
             {
                 //TODO: add boolean to prevent repeat calls
-                playerTarget = stateMachine.Player;
+                playerTarget = _stateMachineNew.Player;
                 agent.SetDestination(playerTarget.position); // Or NPCStateMachine.MoveToPlayer());
                 if (Vector3.Distance(transform.position, playerTarget.position) <= agent.stoppingDistance)
                     movementSensor.FaceCurrentTarget(); // Or NPCStateMachine.RotateToFacePlayer()
             }
 
-            if (stateMachine.IsPlayerAttackable())
+            if (_stateMachineNew.IsPlayerAttackable())
             {
                 Debug.Log("ChaseState: Player in Attackable Range");
-                var attack = stateMachine.states.Find(s => s.GetType() == typeof(AttackState));
-                if (attack != null) stateMachine.SwitchState(attack);
+                var attack = _stateMachineNew.states.Find(s => s.GetType() == typeof(AttackState));
+                if (attack != null) _stateMachineNew.SwitchState(attack);
             }
         }
 

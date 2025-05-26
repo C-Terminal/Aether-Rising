@@ -28,7 +28,7 @@ namespace AI.FSM.NPC.States
         public event Action OnNpcAttackHit;
         public event Action OnNpcAttackMiss;
 
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private float attackTimer = 0f;
         private bool canAttack = true;
@@ -37,8 +37,8 @@ namespace AI.FSM.NPC.States
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[AttackState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>();
+            if (_stateMachineNew == null) Debug.LogError($"[AttackState - {gameObject.name}] : NPCStateMachine not found.");
             
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[AttackState - {gameObject.name}] : No NavMesh Agent found.");
@@ -69,25 +69,25 @@ namespace AI.FSM.NPC.States
         public void OnStateUpdate(float deltaTime)
         {
             // First check if player is out of attack range but still visible
-            if (!stateMachine.IsPlayerAttackable() && stateMachine.IsPlayerVisible())
+            if (!_stateMachineNew.IsPlayerAttackable() && _stateMachineNew.IsPlayerVisible())
             {
                 Debug.Log("AttackState: Player out of attack range, switching to Chase");
-                IState chase = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
-                if (chase != null) stateMachine.SwitchState(chase);
+                IState chase = _stateMachineNew.states.Find(s => s.GetType() == typeof(ChaseState));
+                if (chase != null) _stateMachineNew.SwitchState(chase);
                 return;
             }
             
             // If player is no longer visible at all, return to idle
-            if (!stateMachine.IsPlayerVisible())
+            if (!_stateMachineNew.IsPlayerVisible())
             {
                 Debug.Log("AttackState: Player no longer visible, switching to Idle");
-                IState idle = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
-                if (idle != null) stateMachine.SwitchState(idle);
+                IState idle = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
+                if (idle != null) _stateMachineNew.SwitchState(idle);
                 return;
             }
 
             // Always face the player when attacking
-            stateMachine.RotateToFacePlayer();
+            _stateMachineNew.RotateToFacePlayer();
             
             // Update attack cooldown
             if (!canAttack)
@@ -101,14 +101,14 @@ namespace AI.FSM.NPC.States
             }
             
             // Perform attack if ready
-            if (canAttack && stateMachine.IsPlayerAttackable())
+            if (canAttack && _stateMachineNew.IsPlayerAttackable())
             {
                 PerformAttack();
             }
             else if (npcSpeed > 0 && agent != null && agent.enabled)
             {
                 // Move toward player if we're not a stationary attacker
-                agent.SetDestination(stateMachine.Player.position);
+                agent.SetDestination(_stateMachineNew.Player.position);
             }
             
             // Check if we should reposition after multiple attacks
@@ -186,14 +186,14 @@ namespace AI.FSM.NPC.States
         private bool CalculateHit()
         {
             // Simple hit calculation - could be expanded with dodge mechanics, etc.
-            if (stateMachine.Player != null && stateMachine.IsPlayerAttackable())
+            if (_stateMachineNew.Player != null && _stateMachineNew.IsPlayerAttackable())
             {
                 // Line of sight check
                 RaycastHit hit;
-                Vector3 dirToPlayer = stateMachine.Player.position - transform.position;
+                Vector3 dirToPlayer = _stateMachineNew.Player.position - transform.position;
                 if (Physics.Raycast(transform.position + Vector3.up, dirToPlayer.normalized, out hit, maxAttackDistance))
                 {
-                    return hit.transform == stateMachine.Player;
+                    return hit.transform == _stateMachineNew.Player;
                 }
             }
             return false;
@@ -202,7 +202,7 @@ namespace AI.FSM.NPC.States
         private void DealDamageToPlayer()
         {
             // Find player's health component
-            Health playerHealth = stateMachine.Player.GetComponent<Health>();
+            Health playerHealth = _stateMachineNew.Player.GetComponent<Health>();
             if (playerHealth != null)
             {
                 playerHealth.TakeDamage(attackDamage, gameObject.tag);
@@ -228,8 +228,8 @@ namespace AI.FSM.NPC.States
             }
             
             // Let the chase state take over temporarily
-            IState chase = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
-            if (chase != null) stateMachine.SwitchState(chase);
+            IState chase = _stateMachineNew.states.Find(s => s.GetType() == typeof(ChaseState));
+            if (chase != null) _stateMachineNew.SwitchState(chase);
         }
     }
 }

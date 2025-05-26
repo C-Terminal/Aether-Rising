@@ -16,7 +16,7 @@ namespace AI.FSM.NPC.States
         [Range(0, 1)]
         [SerializeField] private float patrolChance = 0.7f;
         
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private float idleTimer;
         private float currentIdleTime;
@@ -25,8 +25,8 @@ namespace AI.FSM.NPC.States
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[IdleState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>();
+            if (_stateMachineNew == null) Debug.LogError($"[IdleState - {gameObject.name}] : NPCStateMachine not found.");
             
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[IdleState - {gameObject.name}] : No NavMesh Agent found.");
@@ -59,11 +59,11 @@ namespace AI.FSM.NPC.States
         public void OnStateUpdate(float deltaTime)
         {
             // Check if player became visible
-            if (stateMachine.IsPlayerVisible())
+            if (_stateMachineNew.IsPlayerVisible())
             {
                 Debug.Log("IdleState: Player spotted, switching to Chase");
-                IState chase = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
-                if (chase != null) stateMachine.SwitchState(chase);
+                IState chase = _stateMachineNew.states.Find(s => s.GetType() == typeof(ChaseState));
+                if (chase != null) _stateMachineNew.SwitchState(chase);
                 return;
             }
 
@@ -95,40 +95,40 @@ namespace AI.FSM.NPC.States
             if (Random.value < patrolChance)
             {
                 // Transition to patrol
-                IState patrol = stateMachine.states.Find(s => s.GetType() == typeof(PatrolState));
+                IState patrol = _stateMachineNew.states.Find(s => s.GetType() == typeof(PatrolState));
                 if (patrol != null) 
                 {
                     Debug.Log("IdleState: Transitioning to Patrol");
-                    stateMachine.SwitchState(patrol);
+                    _stateMachineNew.SwitchState(patrol);
                 }
                 else
                 {
                     // Fallback to wander if patrol doesn't exist
-                    IState wander = stateMachine.states.Find(s => s.GetType() == typeof(WanderState));
+                    IState wander = _stateMachineNew.states.Find(s => s.GetType() == typeof(WanderState));
                     if (wander != null)
                     {
                         Debug.Log("IdleState: Patrol not found, transitioning to Wander");
-                        stateMachine.SwitchState(wander);
+                        _stateMachineNew.SwitchState(wander);
                     }
                 }
             }
             else
             {
                 // Transition to wander
-                IState wander = stateMachine.states.Find(s => s.GetType() == typeof(WanderState));
+                IState wander = _stateMachineNew.states.Find(s => s.GetType() == typeof(WanderState));
                 if (wander != null)
                 {
                     Debug.Log("IdleState: Transitioning to Wander");
-                    stateMachine.SwitchState(wander);
+                    _stateMachineNew.SwitchState(wander);
                 }
                 else
                 {
                     // Fallback to patrol if wander doesn't exist
-                    IState patrol = stateMachine.states.Find(s => s.GetType() == typeof(PatrolState));
+                    IState patrol = _stateMachineNew.states.Find(s => s.GetType() == typeof(PatrolState));
                     if (patrol != null)
                     {
                         Debug.Log("IdleState: Wander not found, transitioning to Patrol");
-                        stateMachine.SwitchState(patrol);
+                        _stateMachineNew.SwitchState(patrol);
                     }
                 }
             }

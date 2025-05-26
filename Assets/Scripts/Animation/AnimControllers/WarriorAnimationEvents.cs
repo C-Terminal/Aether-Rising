@@ -16,7 +16,7 @@ namespace Animation.AnimControllers
     public class WarriorAnimationEvents : MonoBehaviour
     {
         private NPCController _npcController;
-        private WarriorStateMachine _warriorStateMachine; // Optional, if anim events directly signal FSM
+        private WarriorStateMachine _stateMachineNewNew; // Optional, if anim events directly signal FSM
 
         void Awake()
         {
@@ -28,8 +28,8 @@ namespace Animation.AnimControllers
             }
 
             // Cache the WarriorStateMachine (optional, if you want animation events to directly signal FSM states)
-            _warriorStateMachine = GetComponent<WarriorStateMachine>();
-            if (_warriorStateMachine == null)
+            _stateMachineNewNew = GetComponent<WarriorStateMachine>();
+            if (_stateMachineNewNew == null)
             {
                 // This might be okay if all FSM signaling is handled through NPCController or states themselves
                 // Debug.LogWarning($"[{gameObject.name}] WarriorAnimationEvents: WarriorStateMachine component not found. Direct FSM signaling from anim events will not be available.", this);

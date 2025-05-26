@@ -10,7 +10,7 @@ namespace AI.FSM.Warrior.States
     /// <summary>
     /// State where the warrior retreats from the player to reposition or recover
     /// </summary>
-    [RequireComponent(typeof(WarriorStateMachine))]
+    [RequireComponent(typeof(StateMachineNew))]
     public class W_RetreatState : MonoBehaviour, IState
     {
         [Header("Retreat Settings")]
@@ -29,7 +29,7 @@ namespace AI.FSM.Warrior.States
         [Tooltip("Speed multiplier while retreating")]
         [SerializeField] private float speedMultiplier = 1.2f;
 
-        private WarriorStateMachine stateMachine;
+        private StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private Transform player;
         private float originalSpeed;
@@ -40,7 +40,7 @@ namespace AI.FSM.Warrior.States
 
         private void Awake()
         {
-            stateMachine = GetComponent<WarriorStateMachine>();
+            _stateMachineNew = GetComponent<StateMachineNew>();
         }
 
         public void OnStateEnter()
@@ -48,16 +48,16 @@ namespace AI.FSM.Warrior.States
             Debug.Log($"[W_RetreatState - {gameObject.name}]: Entering retreat state");
             
             // Cache references
-            agent = stateMachine.Agent;
-            player = stateMachine.Player;
+            agent = _stateMachineNew.Agent;
+            player = _stateMachineNew.Player;
             
             // Cache original speed to restore later
             originalSpeed = agent.speed;
             agent.speed *= speedMultiplier;
             
             // Set animation parameters
-            stateMachine.CharAnim.SetLocomotionBlend(1.0f);  // Full speed animation
-            stateMachine.CharAnim.SetBackwardMovement(true); // Backward movement animation
+            _stateMachineNew.CharAnim.SetLocomotionBlend(1.0f);  // Full speed animation
+            _stateMachineNew.CharAnim.SetBackwardMovement(true); // Backward movement animation
             
             // Reset the retreat timer
             retreatTimer = 0f;
@@ -79,7 +79,7 @@ namespace AI.FSM.Warrior.States
             }
             
             // Reset animation parameters
-            stateMachine.CharAnim.SetBackwardMovement(false);
+            _stateMachineNew.CharAnim.SetBackwardMovement(false);
             
             // Stop any ongoing retreat coroutine
             if (retreatCoroutine != null)
@@ -99,7 +99,7 @@ namespace AI.FSM.Warrior.States
             // If we're still retreating, occasionally face the player
             if (isRetreating && Random.value > 0.8f)
             {
-                stateMachine.RotateToFacePlayer();
+                _stateMachineNew.RotateToFacePlayer();
             }
             
             // Check if it's time to transition to another state
@@ -215,23 +215,23 @@ namespace AI.FSM.Warrior.States
         private void CheckTransitions()
         {
             // If warrior is dead, switch to death state
-            if (stateMachine.IsDead)
+            if (_stateMachineNew.IsSelfDead)
             {
-                var deathState = stateMachine.FindState<DeathState>();
+                var deathState = _stateMachineNew.FindState<DeathState>();
                 if (deathState != null)
                 {
-                    stateMachine.SwitchState(deathState);
+                    _stateMachineNew.SwitchState(deathState);
                     return;
                 }
             }
             
             // If player is dead, switch to wander state
-            if (stateMachine.IsPlayerDead)
+            if (_stateMachineNew.IsPlayerDead)
             {
-                var wanderState = stateMachine.FindState<WanderState>();
+                var wanderState = _stateMachineNew.FindState<WanderState>();
                 if (wanderState != null)
                 {
-                    stateMachine.SwitchState(wanderState);
+                    _stateMachineNew.SwitchState(wanderState);
                     return;
                 }
             }
@@ -241,12 +241,12 @@ namespace AI.FSM.Warrior.States
             {
                 // When done retreating, we want to either:
                 // 1. If health is very low, search for cover
-                if (stateMachine.WarriorHealth.CurrentHealth < 30)
+                if (_stateMachineNew.NpcHealth.CurrentHealth < 30)
                 {
-                    var coverState = stateMachine.FindState<CoverState>();
+                    var coverState = _stateMachineNew.FindState<CoverState>();
                     if (coverState != null)
                     {
-                        stateMachine.SwitchState(coverState);
+                        _stateMachineNew.SwitchState(coverState);
                         return;
                     }
                 }
@@ -255,19 +255,19 @@ namespace AI.FSM.Warrior.States
                 float distanceToPlayer = Vector3.Distance(transform.position, player.position);
                 if (distanceToPlayer < 10f)
                 {
-                    var circlingState = stateMachine.FindState<W_CirclingState>();
+                    var circlingState = _stateMachineNew.FindState<W_CirclingState>();
                     if (circlingState != null)
                     {
-                        stateMachine.SwitchState(circlingState);
+                        _stateMachineNew.SwitchState(circlingState);
                         return;
                     }
                 }
                 
                 // 3. Otherwise, go back to chase state to re-engage
-                var chaseState = stateMachine.FindState<ChaseState>();
+                var chaseState = _stateMachineNew.FindState<ChaseState>();
                 if (chaseState != null)
                 {
-                    stateMachine.SwitchState(chaseState);
+                    _stateMachineNew.SwitchState(chaseState);
                     return;
                 }
             }

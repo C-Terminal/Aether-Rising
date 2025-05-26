@@ -29,14 +29,14 @@ namespace AI.FSM.NPC.States
         public event Action<GameObject> OnNpcItemDrop;
 
         //TODO: Make this the interface instead so i can use multiple FSMs
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
         private bool isDead = false;
         private AudioSource audioSource;
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>(); 
-            if (stateMachine == null) Debug.LogError($"[DeathState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>(); 
+            if (_stateMachineNew == null) Debug.LogError($"[DeathState - {gameObject.name}] : NPCStateMachine not found.");
             
             audioSource = GetComponent<AudioSource>();
         }
@@ -119,7 +119,7 @@ namespace AI.FSM.NPC.States
             foreach (var script in aiScripts)
             {
                 // Skip this Death state component
-                if (script != this && script != stateMachine)
+                if (script != this && script != _stateMachineNew)
                 {
                     script.enabled = false;
                 }

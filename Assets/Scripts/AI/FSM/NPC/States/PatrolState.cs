@@ -20,7 +20,7 @@ namespace AI.FSM.NPC.States
         [Range(0, 1)]
         [SerializeField] private float idleChanceAfterCircuit = 0.3f;
 
-        private NPCStateMachine stateMachine;
+        private FSM.StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private int currentWaypointIndex = 0;
         private float waitTimer = 0f;
@@ -29,8 +29,8 @@ namespace AI.FSM.NPC.States
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[PatrolState - {gameObject.name}] : NPCStateMachine not found.");
+            _stateMachineNew = GetComponent<FSM.StateMachineNew>();
+            if (_stateMachineNew == null) Debug.LogError($"[PatrolState - {gameObject.name}] : NPCStateMachine not found.");
             
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[PatrolState - {gameObject.name}] : No NavMesh Agent found.");
@@ -72,11 +72,11 @@ namespace AI.FSM.NPC.States
         public void OnStateUpdate(float deltaTime)
         {
             // Check if player became visible
-            if (stateMachine.IsPlayerVisible())
+            if (_stateMachineNew.IsPlayerVisible())
             {
                 Debug.Log("PatrolState: Player spotted, switching to Chase");
-                IState chase = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
-                if (chase != null) stateMachine.SwitchState(chase);
+                IState chase = _stateMachineNew.states.Find(s => s.GetType() == typeof(ChaseState));
+                if (chase != null) _stateMachineNew.SwitchState(chase);
                 return;
             }
 
@@ -143,11 +143,11 @@ namespace AI.FSM.NPC.States
         
         private void ReturnToIdle()
         {
-            IState idle = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
+            IState idle = _stateMachineNew.states.Find(s => s.GetType() == typeof(IdleState));
             if (idle != null)
             {
                 Debug.Log("PatrolState: Returning to Idle");
-                stateMachine.SwitchState(idle);
+                _stateMachineNew.SwitchState(idle);
             }
         }
         

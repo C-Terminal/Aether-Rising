@@ -10,7 +10,7 @@ namespace AI.FSM.Warrior.States // Assuming your namespace
 {
     public class W_CirclingState : MonoBehaviour, IState
     {
-        private WarriorStateMachine stateMachine;
+        private StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private CharacterAnimator charAnim; // From WarriorStateMachine
         private Transform player;       // From WarriorStateMachine
@@ -32,26 +32,26 @@ namespace AI.FSM.Warrior.States // Assuming your namespace
 
         void Awake()
         {
-            stateMachine = GetComponent<WarriorStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[{gameObject.name}] W_CirclingState: WarriorStateMachine not found!");
+            _stateMachineNew = GetComponent<StateMachineNew>();
+            if (_stateMachineNew == null) Debug.LogError($"[{gameObject.name}] W_CirclingState: WarriorStateMachine not found!");
         }
 
         public void OnStateEnter()
         {
             // Cache components from stateMachine for convenience (they should be initialized in WarriorStateMachine.Awake)
-            agent = stateMachine.Agent;
-            charAnim = stateMachine.CharAnim;
-            player = stateMachine.Player;
+            agent = _stateMachineNew.Agent;
+            charAnim = _stateMachineNew.CharAnim;
+            player = _stateMachineNew.Player;
 
             if (agent == null || charAnim == null || player == null)
             {
                 Debug.LogError($"[{gameObject.name}] W_CirclingState: Critical component missing from StateMachine. Disabling state behavior.");
                 // Potentially switch to a fail-safe state like Idle
-                stateMachine.SwitchState(stateMachine.FindState<IdleState>());
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<IdleState>());
                 return;
             }
 
-            Debug.Log($"[{stateMachine.gameObject.name}] Entering CirclingState.");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering CirclingState.");
 
             agent.speed = circlingSpeed;
             agent.isStopped = false;
@@ -76,13 +76,13 @@ namespace AI.FSM.Warrior.States // Assuming your namespace
         {
             if (player == null || agent == null || !agent.enabled) return; // Safety check
 
-            stateMachine.RotateToFacePlayer(); // Always face the player
+            _stateMachineNew.RotateToFacePlayer(); // Always face the player
 
             // 1. Check for attack opportunity (PRIMARY exit condition for action)
-            if (NPCManager.Instance != null && NPCManager.Instance.GetAttackingNPC() == stateMachine)
+            if (NPCManager.Instance != null && NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
             {
-                Debug.Log($"[{stateMachine.gameObject.name}] CirclingState: My turn to attack! Switching to PrepareAttackState.");
-                stateMachine.SwitchState(stateMachine.FindState<W_PrepareAttackState>());
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: My turn to attack! Switching to PrepareAttackState.");
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_PrepareAttackState>());
                 return;
             }
 
@@ -90,9 +90,9 @@ namespace AI.FSM.Warrior.States // Assuming your namespace
             float distanceToPlayer = Vector3.Distance(transform.position, player.position);
             if (distanceToPlayer > maxEngagementDistance)
             {
-                Debug.Log($"[{stateMachine.gameObject.name}] CirclingState: Player too far ({distanceToPlayer}m). Switching to ChaseState.");
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: Player too far ({distanceToPlayer}m). Switching to ChaseState.");
                 charAnim.SetAiming(false); // Stop aiming if chasing
-                stateMachine.SwitchState(stateMachine.FindState<ChaseState>());
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<ChaseState>());
                 return;
             }
 
@@ -114,7 +114,7 @@ namespace AI.FSM.Warrior.States // Assuming your namespace
 
         public void OnStateExit()
         {
-            Debug.Log($"[{stateMachine.gameObject.name}] Exiting CirclingState.");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting CirclingState.");
             if (agent != null && agent.enabled)
             {
                 // agent.isStopped = true; // Next state will control this

@@ -7,7 +7,7 @@ namespace AI.FSM.Warrior.States
 {
     public class W_PrepareAttackState : MonoBehaviour, IState
     {
-        private WarriorStateMachine stateMachine;
+        private StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private CharacterAnimator charAnim; // Assuming this is used
         private float telegraphDuration = 1.0f; // Example, configure this
@@ -16,14 +16,14 @@ namespace AI.FSM.Warrior.States
 
         void Awake()
         {
-            stateMachine = GetComponent<WarriorStateMachine>();
-            agent = stateMachine.Agent;
-            charAnim = stateMachine.CharAnim;
+            _stateMachineNew = GetComponent<StateMachineNew>();
+            agent = _stateMachineNew.Agent;
+            charAnim = _stateMachineNew.CharAnim;
         }
 
         public void OnStateEnter()
         {
-            Debug.Log($"[{stateMachine.gameObject.name}] Entering PrepareAttackState.");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering PrepareAttackState.");
             timer = 0f;
             // Potentially move to an optimal attack spot if not already there
             // attackPosition = CalculateOptimalAttackPosition();
@@ -32,7 +32,7 @@ namespace AI.FSM.Warrior.States
             // For now, assume in position or handled by Chase/Circle
 
             agent.isStopped = true; // Stop to telegraph
-            stateMachine.RotateToFacePlayer();
+            _stateMachineNew.RotateToFacePlayer();
             // charAnim.PlayTelegraphAnimation(); // Or set a bool/trigger
             charAnim.SetAiming(true); // Example of a "tell"
             // Or use NPCController to start a specific telegraph sequence:
@@ -41,21 +41,21 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateUpdate(float deltaTime)
         {
-            stateMachine.RotateToFacePlayer(); // Keep facing
+            _stateMachineNew.RotateToFacePlayer(); // Keep facing
             timer += deltaTime;
 
             if (timer >= telegraphDuration)
             {
                 // Check if still allowed to attack by NPCManager (important!)
-                if (NPCManager.Instance.GetAttackingNPC() == stateMachine)
+                if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
                 {
-                    stateMachine.SwitchState(stateMachine.FindState<W_StrikeState>()); // Or your main attack state
+                    _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>()); // Or your main attack state
                 }
                 else
                 {
                     // Lost attack slot during telegraph (e.g., player moved far, another NPC took over)
-                    Debug.Log($"[{stateMachine.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
-                    stateMachine.SwitchState(stateMachine.FindState<W_CirclingState>());
+                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
+                    _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
                 }
             }
 
@@ -67,7 +67,7 @@ namespace AI.FSM.Warrior.States
         {
             // charAnim.StopTelegraphAnimation(); // Or reset bool
             charAnim.SetAiming(false); // Clean up tell
-            Debug.Log($"[{stateMachine.gameObject.name}] Exiting PrepareAttackState.");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
         }
     }
 }

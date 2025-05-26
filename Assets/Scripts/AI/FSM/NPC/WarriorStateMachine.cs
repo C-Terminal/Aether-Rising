@@ -11,7 +11,7 @@ using UnityEngine.AI;
 
 namespace AI.FSM.NPC
 {
-    public class WarriorStateMachine : StateMachine // Assumes a base StateMachine class exists
+    public class WarriorStateMachine : StateMachineNew // Assumes a base StateMachine class exists
     {
         // Configuration
         [Tooltip("Warrior's Field Of View for initiating chase")] [SerializeField]
@@ -19,6 +19,8 @@ namespace AI.FSM.NPC
 
         [Tooltip("Rotation speed when facing the player")] [SerializeField]
         private float rotSpeed = 2f;
+        [Tooltip("NPC's attack distance to Player")]
+        [SerializeField] private float attackDistance = 3f;
 
         // Add near other properties:
         private Transform _playerInTriggerZoneCache; // Player transform from detector
@@ -27,13 +29,15 @@ namespace AI.FSM.NPC
 
         // State & Component References
         public List<IState> states = new(); // Holds all state components attached
-        public NPCController NpcController { get; private set; } // Reference to NPCController
-        public Transform Player { get; private set; }
+        public override NPCController NpcController { get;  set; } // Reference to NPCController
+        public override Transform Player { get;  set; }
 
-        public NavMeshAgent Agent { get; private set; }
+        public override NavMeshAgent Agent { get;  set; }
 
         // public Animator Anim { get; private set; }
-        public CharacterAnimator CharAnim { get; private set; } // New - assuming CharacterAnimator.cs exists
+        public override CharacterAnimator CharAnim { get;  set; } // New - assuming CharacterAnimator.cs exists
+        public override NPCController NpcCtrl { get; }
+        public override Health NpcHealth { get; set; }
         public Health WarriorHealth { get; private set; } // Reference to the Health component
 
         public IState CurrentState { get; private set; }
@@ -78,7 +82,7 @@ namespace AI.FSM.NPC
                 enabled = false; // Disable if no states
                 return;
             }
-
+            base.Awake();
             //TODO: Call InitReferences on states that need it, AFTER all core components on StateMachine are cached.
             foreach (var state in states)
                 if (state is W_StrikeState strikeState) // Example for W_StrikeState
@@ -167,7 +171,7 @@ namespace AI.FSM.NPC
         // Checks if the player is within the defined viewing angle
 // Modify IsPlayerVisible to potentially use the cached player transform
 // if its main Player property isn't set or to ensure it's checking the correct target.
-        public bool IsPlayerVisible() // Consider adding: Transform targetToCheck
+        public override bool IsPlayerVisible() // Consider adding: Transform targetToCheck
         {
             var target = _playerInTriggerZoneCache ?? Player; // Prioritize detector's cache if available
 
@@ -201,8 +205,15 @@ namespace AI.FSM.NPC
             return false;
         }
 
+        public override bool IsPlayerAttackable()
+        {
+            if (Player == null) return false;
+            Vector3 npcToPlayerDir = Player.position - this.transform.position;
+            return npcToPlayerDir.magnitude < attackDistance;
+        }
+
         // Smoothly rotates the NPC to face the player's position on the horizontal plane
-        public void RotateToFacePlayer()
+        public override void RotateToFacePlayer()
         {
             if (Player == null) return;
             var npcToPlayerDir = Player.position - transform.position;

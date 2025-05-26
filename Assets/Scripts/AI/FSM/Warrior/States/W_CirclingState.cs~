@@ -1,7 +1,0 @@
-﻿namespace AI.FSM.Warrior.States
-{
-    public class W_CirclingState
-    {
-        
-    }
-}

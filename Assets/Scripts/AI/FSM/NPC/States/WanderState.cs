@@ -6,7 +6,7 @@ using Random = UnityEngine.Random;
 
 namespace AI.FSM.NPC.States
 {
-    public class WanderState : MonoBehaviour, IState
+    public class WanderState : MonoBehaviour, IState, IInitializableState
     {
         [Tooltip("Speed at which NPC moves while wandering")]
         [SerializeField] private float npcSpeed = 2f;
@@ -24,7 +24,7 @@ namespace AI.FSM.NPC.States
         [Tooltip("Max tries to find valid wander point")]
         [SerializeField] private int maxPositionAttempts = 5;
 
-        private NPCStateMachine stateMachine;
+        private StateMachineNew _ownerStateMachine;
         private NavMeshAgent agent;
         private Vector3 startingPosition;
         private float wanderTimer;
@@ -35,8 +35,8 @@ namespace AI.FSM.NPC.States
 
         void Awake()
         {
-            stateMachine = GetComponent<NPCStateMachine>();
-            if (stateMachine == null) Debug.LogError($"[WanderState - {gameObject.name}] : NPCStateMachine not found.");
+            _ownerStateMachine = GetComponent<StateMachineNew>();
+            if (_ownerStateMachine == null) Debug.LogError($"[WanderState - {gameObject.name}] : NPCStateMachine not found.");
             
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[WanderState - {gameObject.name}] : No NavMesh Agent found.");
@@ -73,11 +73,11 @@ namespace AI.FSM.NPC.States
         public void OnStateUpdate(float deltaTime)
         {
             // Check if player became visible
-            if (stateMachine.IsPlayerVisible())
+            if (_ownerStateMachine.IsPlayerVisible())
             {
                 Debug.Log("WanderState: Player spotted, switching to Chase");
-                IState chase = stateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
-                if (chase != null) stateMachine.SwitchState(chase);
+                IState chase = _ownerStateMachine.states.Find(s => s.GetType() == typeof(ChaseState));
+                if (chase != null) _ownerStateMachine.SwitchState(chase);
                 return;
             }
 
@@ -144,7 +144,19 @@ namespace AI.FSM.NPC.States
                 wanderCoroutine = null;
             }
         }
-        
+
+        public void Initialize(StateMachineNew ownerMachineNew)
+        {
+            _ownerStateMachine = ownerMachineNew;
+            if (_ownerStateMachine == null)
+            {
+                Debug.LogError($"[{gameObject.name}] WanderState: Owner StateMachine is null in Initialize!", this);
+                enabled = false; return;
+            }
+        }
+
+
+
         private void FindAndMoveToWanderPoint()
         {
             if (agent == null || !agent.enabled) return;
@@ -217,10 +229,10 @@ namespace AI.FSM.NPC.States
         
         private void TransitionToIdle()
         {
-            IState idle = stateMachine.states.Find(s => s.GetType() == typeof(IdleState));
+            IState idle = _ownerStateMachine.states.Find(s => s.GetType() == typeof(IdleState));
             if (idle != null)
             {
-                stateMachine.SwitchState(idle);
+                _ownerStateMachine.SwitchState(idle);
             }
         }
         

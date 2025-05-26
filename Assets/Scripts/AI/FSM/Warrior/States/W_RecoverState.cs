@@ -7,15 +7,15 @@ namespace AI.FSM.Warrior.States
 {
     public class W_RecoverState : MonoBehaviour, IState
     {
-        private WarriorStateMachine stateMachine;
+        private StateMachineNew _stateMachineNew;
         private float recoveryDuration = 0.5f; // Example
         private float timer;
 
-        void Awake() { stateMachine = GetComponent<WarriorStateMachine>(); }
+        void Awake() { _stateMachineNew = GetComponent<StateMachineNew>(); }
 
         public void OnStateEnter()
         {
-            Debug.Log($"[{stateMachine.gameObject.name}] Entering RecoverState.");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering RecoverState.");
             timer = 0f;
             // Play recovery/idle animation - CharacterAnimator should already be transitioning
             // or a specific recovery animation could be triggered.
@@ -27,11 +27,11 @@ namespace AI.FSM.Warrior.States
             timer += deltaTime;
             if (timer >= recoveryDuration)
             {
-                stateMachine.SwitchState(stateMachine.FindState<W_CirclingState>());
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
                 //add this later  ?? stateMachine.FindState<IdleState>()
             }
         }
 
-        public void OnStateExit() { Debug.Log($"[{stateMachine.gameObject.name}] Exiting RecoverState."); }
+        public void OnStateExit() { Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting RecoverState."); }
     }
 }
