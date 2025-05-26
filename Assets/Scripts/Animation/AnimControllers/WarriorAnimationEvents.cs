@@ -1,6 +1,7 @@
 ﻿using AI.FSM.NPC;
 using Characters.NPC;
 using UnityEngine;
+using VFX;
 
 // Assuming NPCController is in this namespace
 // using AI.FSM.NPC; // Assuming WarriorStateMachine is in this namespace if needed directly
@@ -136,6 +137,27 @@ namespace Animation.AnimControllers
             Debug.Log($"[{gameObject.name}] WarriorAnimationEvents: Generic Event - {eventName}");
             // _warriorStateMachine?.HandleAnimationPhaseEvent(eventName);
             // Or handle specific string eventName values here.
+        }
+        
+        // In WarriorAnimationEvents.cs
+        public void OnTelegraphStart()
+        {
+            // Get weapon info from NPCController
+            var npcController = GetComponent<NPCController>();
+            if (npcController != null)
+            {
+                var arsenalItem = npcController.GetCurrentArsenalItem();
+                if (arsenalItem.HasValue)
+                {
+                    // Directly spawn the effect at the precise animation frame
+                    VFXManager.Instance.SpawnTelegraphEffect(
+                        arsenalItem.Value.name, 
+                        transform.position, 
+                        transform.rotation, 
+                        arsenalItem.Value.telegraphDuration
+                    );
+                }
+            }
         }
     }
 }

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using AI.FSM.Warrior.States;
 using Characters.ExoGray.Scripts;
 using UnityEngine;
 using UnityEngine.AI;
@@ -17,6 +19,17 @@ namespace AI.FSM.NPC.States
         private Transform playerTarget;
         private FSM.StateMachineNew _stateMachineNew;
 
+        
+        // At the class level, define the attack state types
+        private static readonly Type[] _attackStateTypes = new Type[]
+        {
+            typeof(AttackState),
+            typeof(W_CirclingState),
+            typeof(W_PrepareAttackState),
+            typeof(W_StrikeState),
+            typeof(W_RecoverState)
+        };
+        
         private void Awake()
         {
             _stateMachineNew = GetComponent<FSM.StateMachineNew>(); // Assuming NPCStateMachine is on the same GameObject
@@ -41,7 +54,7 @@ namespace AI.FSM.NPC.States
             // Store the state from which we entered Chase, unless it was Chase itself or Attack
             if (_stateMachineNew.PreviousState != null &&
                 _stateMachineNew.PreviousState.GetType() != typeof(ChaseState) &&
-                _stateMachineNew.PreviousState.GetType() != typeof(AttackState))
+                !_attackStateTypes.Contains(_stateMachineNew.PreviousState.GetType()))
                 previousStateBeforeChase = _stateMachineNew.PreviousState;
         }
 
@@ -75,8 +88,8 @@ namespace AI.FSM.NPC.States
             if (_stateMachineNew.IsPlayerAttackable())
             {
                 Debug.Log("ChaseState: Player in Attackable Range");
-                var attack = _stateMachineNew.states.Find(s => s.GetType() == typeof(AttackState));
-                if (attack != null) _stateMachineNew.SwitchState(attack);
+                var prepareAttack = _stateMachineNew.states.Find(s => s.GetType() == typeof(W_PrepareAttackState));
+                if (prepareAttack != null) _stateMachineNew.SwitchState(prepareAttack);
             }
         }
 

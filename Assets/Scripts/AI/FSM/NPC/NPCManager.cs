@@ -186,6 +186,35 @@ namespace AI.FSM.NPC
             }
         }
 
+        /// <summary>
+        /// Requests permission for an NPC to attack the player.
+        /// Returns true if permission is granted, false otherwise.
+        /// </summary>
+        /// <param name="npc">The NPC requesting permission to attack</param>
+        /// <returns>True if the NPC can attack, false otherwise</returns>
+        public bool RequestAttackPermission(WarriorStateMachine npc)
+        {
+            // Check if the NPC is valid and in range
+            if (npc == null || !npcsInRange.Contains(npc) || npc.IsSelfDead)
+            {
+                Debug.LogWarning($"[NPCManager] Invalid attack request from {(npc != null ? npc.name : "null")}");
+                return false;
+            }
+
+            // If no NPC is attacking, or this NPC is already the attacker
+            if (!IsAnyNPCAttacking() || currentAttackingNPC == npc)
+            {
+                SetAttackingNPC(npc);
+                return true;
+            }
+            // If this NPC is not the current attacker but wants to attack
+            else
+            {
+                Debug.Log($"[NPCManager] {npc.name} requested attack permission but {currentAttackingNPC.name} is already attacking.");
+                return false;
+            }
+        }
+
         // --- Internal Logic ---
 
         // Selects a random NPC from the 'inRange' list to be the next attacker

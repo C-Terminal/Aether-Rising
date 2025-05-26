@@ -408,7 +408,6 @@ namespace AI.FSM.NPC
                         this);
             }
             //TODO: flesh out paths
-            //todo: add check for attack states here
             if (IsPlayerAttackable())
             {
                 Debug.Log($"[{gameObject.name}] WarriorStateMachine: Player in attack range on initial visibility. Skipping chase and preparing attack.");
