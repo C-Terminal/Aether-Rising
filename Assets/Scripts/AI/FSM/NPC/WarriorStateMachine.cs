@@ -45,7 +45,7 @@ namespace AI.FSM.NPC
         // State Tracking
         public float CirclingTime { get; set; } // Used by CirclingState and potentially NPCManager
         public bool HasSpottedPlayer { get; set; } // Flag set by NPCManager/PlayerDetector
-        public bool IsPlayerDead { get; set; } // Flag set based on Player health events
+        private bool IsPlayerDead { get; set; } // Flag set based on Player health events
 
         public bool IsDead => WarriorHealth != null && WarriorHealth.IsDead;
 
@@ -207,6 +207,34 @@ namespace AI.FSM.NPC
             return false;
         }
 
+        // Add this to WarriorStateMachine.cs
+        override public  float GetMaxEngagementDistance()
+        {
+            // Base engagement distance is the attack distance plus some buffer
+            // This gives NPCs some room to maneuver before breaking engagement
+            float baseDistance = attackDistance * 2.5f;
+    
+            // Optionally adjust based on weapon type
+            if (NpcController != null)
+            {
+                var arsenalItem = NpcController.GetCurrentArsenalItem();
+                if (arsenalItem.HasValue)
+                {
+                    // Weapons with longer reach might have larger engagement distances
+                    if (arsenalItem.Value.name.Contains("Spear") || arsenalItem.Value.name.Contains("Polearm"))
+                    {
+                        baseDistance *= 1.2f; // 20% more for long weapons
+                    }
+                    else if (arsenalItem.Value.name.Contains("Bow") || arsenalItem.Value.name.Contains("Crossbow"))
+                    {
+                        baseDistance *= 1.5f; // 50% more for ranged weapons
+                    }
+                }
+            }
+    
+            return baseDistance;
+        }
+        
         public override bool IsPlayerAttackable()
         {
             if (Player == null) return false;
@@ -408,7 +436,6 @@ namespace AI.FSM.NPC
                         this);
             }
             //TODO: flesh out paths
-            //todo: add check for attack states here
             if (IsPlayerAttackable())
             {
                 Debug.Log($"[{gameObject.name}] WarriorStateMachine: Player in attack range on initial visibility. Skipping chase and preparing attack.");

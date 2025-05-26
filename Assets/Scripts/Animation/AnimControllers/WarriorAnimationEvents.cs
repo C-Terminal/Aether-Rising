@@ -1,4 +1,6 @@
-﻿using AI.FSM.NPC;
+﻿using AI.FSM;
+using AI.FSM.NPC;
+using AI.FSM.Warrior.States;
 using Characters.NPC;
 using UnityEngine;
 using VFX;
@@ -138,7 +140,20 @@ namespace Animation.AnimControllers
             // _warriorStateMachine?.HandleAnimationPhaseEvent(eventName);
             // Or handle specific string eventName values here.
         }
-        
+        // In WarriorAnimationEvents.cs
+        public void OnStrikeComplete()
+        {
+            // Find the state machine and pass the event
+            var stateMachine = GetComponent<StateMachineNew>();
+            if (stateMachine != null)
+            {
+                var strikeState = stateMachine.FindState<W_StrikeState>();
+                if (strikeState != null)
+                {
+                    (strikeState as W_StrikeState)?.HandleStrikeComplete();
+                }
+            }
+        }
         // In WarriorAnimationEvents.cs
         public void OnTelegraphStart()
         {

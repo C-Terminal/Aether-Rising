@@ -29,6 +29,9 @@ namespace AI.FSM
 
         public bool IsPlayerDead { get; set; }
         public bool IsSelfDead => NpcHealth != null && NpcHealth.IsDead;
+        // public float MaxEngagementDistance { get; set; }
+        
+
 
 
         protected virtual void Awake()
@@ -94,6 +97,11 @@ namespace AI.FSM
         /// </summary>
         public abstract bool IsPlayerAttackable();
 
+        /// <summary>
+        /// Returns the maximum distance at which the NPC can engage the player.
+        /// </summary>
+        public abstract float GetMaxEngagementDistance();
+        
         /// <summary>
         /// Commands this state machine's character to rotate towards the player.
         /// </summary>

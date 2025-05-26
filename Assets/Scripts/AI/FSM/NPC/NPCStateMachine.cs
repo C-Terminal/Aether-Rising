@@ -109,6 +109,11 @@ namespace AI.FSM.NPC
             return npcToPlayerDir.magnitude < attackDistance;
         }
 
+        public override float GetMaxEngagementDistance()
+        {
+            throw new System.NotImplementedException();
+        }
+
         public override void RotateToFacePlayer()
         {
             if (player == null) return;

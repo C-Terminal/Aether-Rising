@@ -15,9 +15,15 @@ namespace Characters.NPC
             public GameObject weaponPrefab; // Simplified: assumes one primary weapon object per set
             public RuntimeAnimatorController animatorController; // Specific animator for this weapon set
             // Weapon-specific timings (can be used by FSM states or this controller)
+            [Header("Attack Parameters")]
             public float telegraphDuration;
-            public float strikeDuration; // Or use animation events to determine end
-            public float recoveryDuration;
+            public float strikeDuration;
+            public float recoverDuration;
+            public float damageMultiplier;
+    
+            [Header("VFX/SFX References")]
+            public string telegraphEffectName;
+            public string strikeEffectName;
             // public MeleeWeaponDamage meleeDamageDealer; // If you want to link it directly here
         }
 

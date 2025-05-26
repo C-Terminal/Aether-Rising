@@ -3,6 +3,8 @@ using AI.FSM.NPC.States;
 using Animation.AnimControllers;
 using Characters.NPC;
 using Combat.Weapons.Melee;
+using Core.Events;
+using Core.Events.Combat;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -82,7 +84,28 @@ namespace AI.FSM.Warrior.States
             _machineNew.RotateToFacePlayer();
             _agent.isStopped = true; // Stop movement for the strike
 
-            _npcController.ExecuteStrikeAction(); // Tell NPCController to handle strike animation via CharacterAnimator
+            // Execute the strike animation
+            _npcController.ExecuteStrikeAction();
+    
+            // Get weapon info for strike-specific effects
+            var arsenalItem = _npcController.GetCurrentArsenalItem();
+            if (arsenalItem.HasValue)
+            {
+                // Trigger strike event for VFX/SFX
+                EventManager.TriggerEvent(new AttackStrikeEventData
+                {
+                    AttackerTransform = transform,
+                    WeaponType = arsenalItem.Value.name,
+                    TargetTransform = _machineNew.Player,
+                    StrikePower = 1.0f // Could be variable based on NPC state/weapon
+                });
+        
+                // Update strike duration from arsenal item if available
+                if (arsenalItem.Value.strikeDuration > 0)
+                {
+                    _strikeAnimDurationEstimate = arsenalItem.Value.strikeDuration;
+                }
+            }
         }
 
         public void OnStateUpdate(float deltaTime)
@@ -100,6 +123,13 @@ namespace AI.FSM.Warrior.States
             {
                 FinishStrikeSequence();
             }
+        }
+        
+        // In W_StrikeState.cs
+        public void HandleStrikeComplete()
+        {
+            // This can be called by an animation event through WarriorAnimationEvents
+            FinishStrikeSequence();
         }
 
         public void OnStateExit()

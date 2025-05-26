@@ -1,4 +1,5 @@
 ﻿using AI.FSM.NPC;
+using AI.FSM.NPC.States;
 using Animation.AnimControllers;
 using Core.Events;
 using Core.Events.Combat;
@@ -64,26 +65,76 @@ namespace AI.FSM.Warrior.States
         {
             _stateMachineNew.RotateToFacePlayer(); // Keep facing
             timer += deltaTime;
+            
+            // Debug logging to track timer progress
+            if (timer % 0.5f < 0.01f) // Log roughly every 0.5 seconds to avoid spam
+            {
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] PrepareAttackState timer: {timer:F2}/{telegraphDuration:F2}");
+            }
 
             if (timer >= telegraphDuration)
             {
-                // Check if still allowed to attack by NPCManager (important!)
-                if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
-                {
-                    _stateMachineNew.SwitchState(_stateMachineNew
-                        .FindState<W_StrikeState>()); // Or your main attack state
-                }
-                else
-                {
-                    // Lost attack slot during telegraph (e.g., player moved far, another NPC took over)
-                    Debug.Log(
-                        $"[{_stateMachineNew.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
-                    _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
-                }
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] PrepareAttackState timer reached threshold: {timer:F2}/{telegraphDuration:F2}");
+                TransitionToStrikeState();
             }
 
+            // Check if player moved too far during telegraph
+            if (_stateMachineNew.Player != null && 
+                Vector3.Distance(transform.position, _stateMachineNew.Player.position) > _stateMachineNew.GetMaxEngagementDistance())
+            {
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Player moved too far during telegraph. Aborting to Chase.");
+        
+                // End telegraph effects
+                var npcController = _stateMachineNew.NpcController;
+                if (npcController != null)
+                {
+                    npcController.EndTelegraphAction();
+                }
+        
+                // Trigger event for aborting telegraph
+                EventManager.TriggerEvent(new AttackTelegraphAbortEventData
+                {
+                    AttackerTransform = transform,
+                    Reason = "TargetOutOfRange"
+                });
+        
+                // Switch to chase state
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<ChaseState>());
+            }
+            
             // Add logic: if player moves too far during telegraph, maybe abort to Chase/Circle
             // Add logic: if damaged during telegraph, maybe abort to HitState
+        }
+
+        private void TransitionToStrikeState()
+        {
+            // Check if still allowed to attack by NPCManager
+            if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
+            {
+                // End telegraph animation/effects
+                var npcController = _stateMachineNew.NpcController;
+                if (npcController != null)
+                {
+                    npcController.EndTelegraphAction();
+                }
+        
+                // Trigger event for telegraph completion
+                EventManager.TriggerEvent(new AttackTelegraphCompleteEventData
+                {
+                    AttackerTransform = transform,
+                    WeaponType = npcController?.GetCurrentArsenalItem()?.name ?? "Unknown"
+                });
+        
+                // Switch to strike state
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Transitioning from PrepareAttackState to StrikeState.");
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
+            }
+            else
+            {
+                // Lost attack slot during telegraph
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
+            }
         }
 
         public void OnStateExit()
@@ -92,6 +143,7 @@ namespace AI.FSM.Warrior.States
             charAnim.SetAiming(false); // Clean up tell
             Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
         }
+
 
         public void InitReferences(StateMachineNew stateMachine)
         {
