@@ -110,6 +110,15 @@ namespace AI.FSM
         /// Commands this state machine's character to rotate towards the player.
         /// </summary>
         public abstract void RotateToFacePlayer();
+
+        public virtual void RotateTowardPosition(Vector3 targetPosition)
+        {
+            var npcToPlayerDir = targetPosition - transform.position;
+            npcToPlayerDir.y = 0; // Ignore vertical difference
+            if (npcToPlayerDir == Vector3.zero) return; // Avoid zero vector rotation
+            var targetRotation = Quaternion.LookRotation(npcToPlayerDir);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5);
+        }
     }
 
 // Interface for states that need initialization from their owner

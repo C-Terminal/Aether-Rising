@@ -16,10 +16,10 @@ namespace AI.FSM.NPC
 
         // Lists to track NPCs
         // NPCs actively engaging the player (within detection trigger + visible)
-        public List<StateMachineNew> npcsInRange = new();
-        public List<StateMachineNew> NpcsInRange { get { return npcsInRange; } }
+        public List<WarriorStateMachine> npcsInRange = new();
+        public List<WarriorStateMachine> NpcsInRange { get { return npcsInRange; } }
         // All NPCs currently present in the level
-        public List<StateMachineNew> npcsInLevel = new();
+        public List<WarriorStateMachine> npcsInLevel = new List<WarriorStateMachine>();
 
         // Singleton instance
         private static NPCManager _instance;
@@ -42,7 +42,7 @@ namespace AI.FSM.NPC
         }
 
         // Attack Coordination
-        private StateMachineNew currentAttackingNPC; // The NPC currently performing an attack action
+        private WarriorStateMachine currentAttackingNPC; // The NPC currently performing an attack action
         private float attackTimer; // Countdown timer for the next attack slot
 
         void Awake()
@@ -155,7 +155,7 @@ namespace AI.FSM.NPC
         }
 
         // Allows an AttackState to claim the attack slot
-        public void SetAttackingNPC(StateMachineNew npc)
+        public void SetAttackingNPC(WarriorStateMachine npc)
         {
             // Only allow setting if the slot is free OR if the requesting NPC is the designated one
             if (currentAttackingNPC == null || currentAttackingNPC == npc)
@@ -193,7 +193,7 @@ namespace AI.FSM.NPC
         /// </summary>
         /// <param name="npc">The NPC requesting permission to attack</param>
         /// <returns>True if the NPC can attack, false otherwise</returns>
-        public bool RequestAttackPermission(StateMachineNew npc)
+        public bool RequestAttackPermission(WarriorStateMachine npc)
         {
             // Check if the NPC is valid and in range
             if (npc == null || !npcsInRange.Contains(npc) || npc.IsSelfDead)

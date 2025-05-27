@@ -19,37 +19,39 @@ namespace AI.FSM.NPC
 
         [Tooltip("Rotation speed when facing the player")] [SerializeField]
         private float rotSpeed = 2f;
-        [Tooltip("NPC's attack distance to Player")]
-        [SerializeField] private float attackDistance = 3f;
+
+        [Tooltip("NPC's attack distance to Player")] [SerializeField]
+        private float attackDistance = 3f;
 
         // Add near other properties:
         private Transform _playerInTriggerZoneCache; // Player transform from detector
+        public Action<IState, IState> OnStateChanged; // Event for state changes
 
         private IState startingState;
 
         // State & Component References
         public List<IState> states = new(); // Holds all state components attached
-        public override NPCController NpcController { get;  set; } // Reference to NPCController
-        public override Transform Player { get;  set; }
+        public override NPCController NpcController { get; set; } // Reference to NPCController
+        public override Transform Player { get; set; }
 
-        public override NavMeshAgent Agent { get;  set; }
+        public override NavMeshAgent Agent { get; set; }
 
         // public Animator Anim { get; private set; }
-        public override CharacterAnimator CharAnim { get;  set; } // New - assuming CharacterAnimator.cs exists
+        public override CharacterAnimator CharAnim { get; set; } // New - assuming CharacterAnimator.cs exists
         public override NPCController NpcCtrl { get; }
         public override Health NpcHealth { get; set; }
         public Health WarriorHealth { get; private set; } // Reference to the Health component
 
-        public IState CurrentState { get; private set; }
+        public new IState CurrentState { get; private set; }
 
         // State Tracking
         public float CirclingTime { get; set; } // Used by CirclingState and potentially NPCManager
         public bool HasSpottedPlayer { get; set; } // Flag set by NPCManager/PlayerDetector
-        private bool IsPlayerDead { get; set; } // Flag set based on Player health events
+        private new bool IsPlayerDead { get; set; } // Flag set based on Player health events
 
         public bool IsDead => WarriorHealth != null && WarriorHealth.IsDead;
 
-        private void Awake()
+        private new void Awake()
         {
             // Cache essential components
             Player = GameObject.FindWithTag("Player")?.transform;
@@ -82,6 +84,7 @@ namespace AI.FSM.NPC
                 enabled = false; // Disable if no states
                 return;
             }
+
             base.Awake();
             //TODO: Call InitReferences on states that need it, AFTER all core components on StateMachine are cached.
             foreach (var state in states)
@@ -90,6 +93,8 @@ namespace AI.FSM.NPC
                     strikeState.InitReferences(this);
                 else if (state is W_PrepareAttackState prepareState)
                     prepareState.InitReferences(this);
+                else if (state is W_RecoverState recoverState)
+                    recoverState.InitReferences(this);
             // Add similar blocks if other states need an InitReferences method
             // e.g., if (state is W_PrepareAttackState prepareState) { prepareState.InitReferences(this); }
             // Subscribe to Player death event (assuming Player also has a Health component)
@@ -168,6 +173,17 @@ namespace AI.FSM.NPC
         // Events
         public static event Action<Vector3> OnPlayerSpotted; // Event for alerting NPCManager
 
+        
+        // Modified SwitchState method to fire events
+        public override void SwitchState(IState newState)
+        {
+            IState oldState = CurrentState;
+            base.SwitchState(newState);
+    
+            // Fire state change event
+            OnStateChanged?.Invoke(oldState, newState);
+        }
+
         // --- Public Helper Methods ---
 
         // Checks if the player is within the defined viewing angle
@@ -208,12 +224,12 @@ namespace AI.FSM.NPC
         }
 
         // Add this to WarriorStateMachine.cs
-        override public  float GetMaxEngagementDistance()
+        public override float GetMaxEngagementDistance()
         {
             // Base engagement distance is the attack distance plus some buffer
             // This gives NPCs some room to maneuver before breaking engagement
-            float baseDistance = attackDistance * 2.5f;
-    
+            var baseDistance = attackDistance * 2.5f;
+
             // Optionally adjust based on weapon type
             if (NpcController != null)
             {
@@ -222,23 +238,19 @@ namespace AI.FSM.NPC
                 {
                     // Weapons with longer reach might have larger engagement distances
                     if (arsenalItem.Value.name.Contains("Spear") || arsenalItem.Value.name.Contains("Polearm"))
-                    {
                         baseDistance *= 1.2f; // 20% more for long weapons
-                    }
                     else if (arsenalItem.Value.name.Contains("Bow") || arsenalItem.Value.name.Contains("Crossbow"))
-                    {
                         baseDistance *= 1.5f; // 50% more for ranged weapons
-                    }
                 }
             }
-    
+
             return baseDistance;
         }
-        
+
         public override bool IsPlayerAttackable()
         {
             if (Player == null) return false;
-            Vector3 npcToPlayerDir = Player.position - this.transform.position;
+            var npcToPlayerDir = Player.position - transform.position;
             return npcToPlayerDir.magnitude < attackDistance;
         }
 
@@ -405,6 +417,18 @@ namespace AI.FSM.NPC
             }
         }
 
+// Helper method to check if in engaged state
+        private bool IsInEngagedState()
+        {
+            return CurrentState is ChaseState ||
+                   CurrentState is AttackState ||
+                   CurrentState is W_PrepareAttackState ||
+                   CurrentState is W_StrikeState ||
+                   CurrentState is W_RecoverState ||
+                   CurrentState is W_CirclingState;
+        }
+
+
         /// <summary>
         ///     Called by PlayerDetector's coroutine when detailed visibility check confirms player is visible.
         ///     This is where the FSM decides to fully engage.
@@ -414,18 +438,14 @@ namespace AI.FSM.NPC
             if (IsPlayerDead || IsDead) return;
 
             // If not already actively engaging (chasing, attacking, circling etc.)
-            if (!(CurrentState is ChaseState ||
-                  CurrentState is AttackState || // Old attack state, if still used
-                  CurrentState is W_PrepareAttackState ||
-                  CurrentState is W_StrikeState ||
-                  CurrentState is W_RecoverState ||
-                  CurrentState is W_CirclingState))
+            if (!IsInEngagedState())
             {
                 Debug.Log(
                     $"[{gameObject.name}] WarriorStateMachine: Player confirmed visible. Engaging - Switching to ChaseState.");
                 HasSpottedPlayer = true; // Mark self as spotted (NPCManager also sets this via Register)
                 // This flag is useful for states to know if initial contact was made.
-
+                // TODO: STOP THE VISIBILITY COROUTINE SINCE WE'RE NOW ENGAGING
+                // StopVisibilityChecks();
                 AlertNearbyNPCs(); // Notify NPCManager and other NPCs
 
                 IState chaseState = FindState<ChaseState>();
@@ -435,11 +455,13 @@ namespace AI.FSM.NPC
                     Debug.LogError($"[{gameObject.name}] WarriorStateMachine: ChaseState not found to engage player!",
                         this);
             }
+
             //TODO: flesh out paths
             if (IsPlayerAttackable())
             {
-                Debug.Log($"[{gameObject.name}] WarriorStateMachine: Player in attack range on initial visibility. Skipping chase and preparing attack.");
-    
+                Debug.Log(
+                    $"[{gameObject.name}] WarriorStateMachine: Player in attack range on initial visibility. Skipping chase and preparing attack.");
+
                 // Check if we can attack (via NPCManager)
                 if (NPCManager.Instance.RequestAttackPermission(this))
                 {
@@ -447,7 +469,9 @@ namespace AI.FSM.NPC
                     if (prepareAttackState != null)
                         SwitchState(prepareAttackState);
                     else
-                        Debug.LogError($"[{gameObject.name}] WarriorStateMachine: W_PrepareAttackState not found for immediate attack!", this);
+                        Debug.LogError(
+                            $"[{gameObject.name}] WarriorStateMachine: W_PrepareAttackState not found for immediate attack!",
+                            this);
                 }
                 else
                 {
@@ -456,9 +480,16 @@ namespace AI.FSM.NPC
                     if (circlingState != null)
                         SwitchState(circlingState);
                     else
-                        Debug.LogError($"[{gameObject.name}] WarriorStateMachine: W_CirclingState not found for immediate engagement!", this);
+                        Debug.LogError(
+                            $"[{gameObject.name}] WarriorStateMachine: W_CirclingState not found for immediate engagement!",
+                            this);
                 }
             }
+        }
+
+        private void StopVisibilityChecks()
+        {
+            // throw new NotImplementedException();
         }
 
         /// <summary>

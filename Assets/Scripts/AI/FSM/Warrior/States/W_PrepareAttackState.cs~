@@ -170,7 +170,7 @@ namespace AI.FSM.Warrior.States
                 Debug.Log($"[{_stateMachineNew.gameObject.name}] Stopped telegraph coroutine on state exit.");
             }
             
-            charAnim.SetTelegraphing(false); // Or reset bool
+            // charAnim.StopTelegraphAnimation(); // Or reset bool
             charAnim.SetAiming(false); // Clean up tell
             Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
         }

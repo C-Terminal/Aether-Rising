@@ -208,8 +208,6 @@ namespace Characters.NPC
             // the character is blending back to a ready/idle pose.
             // Often, just transitioning out of attack in the animator is enough.
             // CharacterAnimator.SetMovementSpeed(0); might be called by the FSM state.
-            characterAnimator.SetAttacking(false);
-            characterAnimator.SetRecovery(true);
         }
 
         // --- Animation Event Callbacks (called by WarriorAnimationEvents) ---
@@ -246,7 +244,7 @@ namespace Characters.NPC
         {
             if (characterAnimator == null) return;
             Debug.Log($"[{gameObject.name}] NPCController: Action - Finish Recovery.");
-            characterAnimator.SetRecovery(false); // Reset the "Recovery" bool
+            characterAnimator.SetAttacking(false); // Reset the "Recovery" bool
             // Hitbox should have been disabled by an Animation Event already.
         }
     }

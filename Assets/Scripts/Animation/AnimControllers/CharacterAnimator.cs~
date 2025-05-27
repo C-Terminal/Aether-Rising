@@ -36,7 +36,6 @@ namespace Animation.AnimControllers
         private readonly int _animIDSpeedForward = Animator.StringToHash("SpeedForward");
         private readonly int _animIDSpeedSideways = Animator.StringToHash("SpeedSideways");
         private readonly int _animIDTelegraph = Animator.StringToHash("Telegraph");
-        private readonly int _animIDRecovery = Animator.StringToHash("Recovery");
 
         private void Awake()
         {
@@ -96,14 +95,6 @@ namespace Animation.AnimControllers
             if (_animator != null)
             {
                 _animator.SetBool(_animIDAttack, isAttacking);
-            }
-        }
-        
-        public void SetRecovery(bool isRecovering) // Renamed from SetAttack to avoid confusion with TriggerAttack
-        {
-            if (_animator != null)
-            {
-                _animator.SetBool(_animIDRecovery, isRecovering);
             }
         }
 
@@ -222,8 +213,6 @@ namespace Animation.AnimControllers
                 _animator.SetBool(_animIDTelegraph, isTelegraphing);
             }
         }
-        
-        
 
         /// <summary>
         /// Checks if the Animator is currently in a specific animation state.
