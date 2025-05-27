@@ -5,6 +5,7 @@ using Characters.NPC;
 using Combat.Weapons.Melee;
 using Core.Events;
 using Core.Events.Combat;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -22,6 +23,9 @@ namespace AI.FSM.Warrior.States
         private float _strikeAnimDurationEstimate = 1.2f; // Fallback if not from ArsenalItem
         private float _timer;
         private bool _hasClearedAttackerSlot;
+        
+        // Add coroutine reference
+        private Coroutine _strikeCoroutine;
 
         void Awake()
         {
@@ -106,6 +110,38 @@ namespace AI.FSM.Warrior.States
                     _strikeAnimDurationEstimate = arsenalItem.Value.strikeDuration;
                 }
             }
+            
+            // Start the strike coroutine
+            if (_strikeCoroutine != null)
+            {
+                StopCoroutine(_strikeCoroutine);
+            }
+            _strikeCoroutine = StartCoroutine(StrikeCoroutine());
+        }
+        
+        // Coroutine to handle strike timing
+        private IEnumerator StrikeCoroutine()
+        {
+            float elapsedTime = 0f;
+            
+            Debug.Log($"[{_machineNew.gameObject.name}] Starting strike coroutine. Duration: {_strikeAnimDurationEstimate}s");
+            
+            while (elapsedTime < _strikeAnimDurationEstimate)
+            {
+                elapsedTime += Time.deltaTime;
+                _timer = elapsedTime; // Update the timer variable for consistency
+                
+                // Log progress periodically
+                if (Mathf.Floor(elapsedTime * 2) > Mathf.Floor((elapsedTime - Time.deltaTime) * 2))
+                {
+                    Debug.Log($"[{_machineNew.gameObject.name}] Strike progress: {elapsedTime:F2}/{_strikeAnimDurationEstimate:F2}");
+                }
+                
+                yield return null;
+            }
+            
+            Debug.Log($"[{_machineNew.gameObject.name}] Strike complete after {elapsedTime:F2} seconds");
+            FinishStrikeSequence();
         }
 
         public void OnStateUpdate(float deltaTime)
@@ -113,22 +149,27 @@ namespace AI.FSM.Warrior.States
             if (_machineNew == null) return;
 
             // Keep facing player during strike if desired (some games allow slight tracking)
-            // _stateMachine.RotateToFacePlayer(); 
-            _timer += deltaTime;
-
-            // Transition based on timer (estimate) or ideally an Animation Event
-            // that calls a method on WarriorStateMachine, which then calls a method on this current state.
-            // e.g., public void HandleAnimationEvent(string eventName) { if (eventName == "StrikeComplete") ... }
-            if (_timer >= _strikeAnimDurationEstimate)
-            {
-                FinishStrikeSequence();
-            }
+            // _machineNew.RotateToFacePlayer(); 
+            
+            // We don't need to update the timer or check for transition here anymore
+            // The coroutine handles that independently
+            
+            // Any other state-specific logic that needs to run every frame can go here
         }
         
         // In W_StrikeState.cs
         public void HandleStrikeComplete()
         {
             // This can be called by an animation event through WarriorAnimationEvents
+            
+            // Stop the coroutine if it's still running
+            if (_strikeCoroutine != null)
+            {
+                StopCoroutine(_strikeCoroutine);
+                _strikeCoroutine = null;
+                Debug.Log($"[{_machineNew.gameObject.name}] Strike coroutine stopped by animation event.");
+            }
+            
             FinishStrikeSequence();
         }
 
@@ -136,6 +177,14 @@ namespace AI.FSM.Warrior.States
         {
             if (_machineNew == null) return;
             Debug.Log($"[{_machineNew.gameObject.name}] Exiting StrikeState.");
+            
+            // Stop the strike coroutine if it's running
+            if (_strikeCoroutine != null)
+            {
+                StopCoroutine(_strikeCoroutine);
+                _strikeCoroutine = null;
+                Debug.Log($"[{_machineNew.gameObject.name}] Stopped strike coroutine on state exit.");
+            }
 
             // Ensure NPCController cleans up its strike state (e.g., SetAttacking(false))
             _npcController?.FinishStrikeAction();

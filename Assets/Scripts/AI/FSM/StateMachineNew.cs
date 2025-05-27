@@ -67,7 +67,11 @@ namespace AI.FSM
 
         public virtual void SwitchState(IState newState)
         {
-            if (newState == null || newState == CurrentState) return;
+            if (newState == null || newState == CurrentState) 
+            {
+                Debug.LogWarning($"[{gameObject.name}] Attempted to switch to null or same state: {newState?.GetType().Name}");
+                return;
+            }
             CurrentState?.OnStateExit();
             PreviousState = CurrentState;
             CurrentState = newState;
