@@ -1,98 +1,120 @@
-﻿using Animation.AnimControllers;
+﻿using System;
+using Animation.AnimControllers;
 using Combat.Weapons.Melee;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Serialization;
 
 namespace Characters.NPC
 {
     [RequireComponent(typeof(Animator))] // Standard Unity Animator for RuntimeAnimatorController
     // CharacterAnimator is also expected for detailed animation control.
+    [RequireComponent(typeof(NavMeshAgent))]
     public class NPCController : MonoBehaviour
     {
-        [System.Serializable]
-        public struct ArsenalItem
-        {
-            public string name;
-            public GameObject weaponPrefab; // Simplified: assumes one primary weapon object per set
-            public RuntimeAnimatorController animatorController; // Specific animator for this weapon set
-            // Weapon-specific timings (can be used by FSM states or this controller)
-            [Header("Attack Parameters")]
-            public float telegraphDuration;
-            public float strikeDuration;
-            [FormerlySerializedAs("recoverDuration")] public float recoveryDuration;
-            public float damageMultiplier;
-    
-            [Header("VFX/SFX References")]
-            public string telegraphEffectName;
-            public string strikeEffectName;
-            // public MeleeWeaponDamage meleeDamageDealer; // If you want to link it directly here
-        }
-
         [Header("Weapon Arsenal")]
         [Tooltip("Transform on the rig where the weapon will be parented (e.g., hand bone).")]
-        [SerializeField] private Transform weaponAttachmentBone;
-        [Tooltip("List of weapon setups available to this NPC.")]
-        [SerializeField] private ArsenalItem[] arsenal = new ArsenalItem[0];
-        [Tooltip("Name of the default weapon set to equip on Awake.")]
-        [SerializeField] private string defaultWeaponSetName;
+        [SerializeField]
+        private Transform weaponAttachmentBone;
 
-        private Animator _unityAnimator; // Standard Unity Animator
-        private GameObject _currentWeaponInstance;
-        private MeleeWeaponDamage _currentMeleeDamageDealer; // Cached from the instantiated weapon
+        [Tooltip("List of weapon setups available to this NPC.")] [SerializeField]
+        private ArsenalItem[] arsenal = new ArsenalItem[0];
+
+        [Tooltip("Name of the default weapon set to equip on Awake.")] [SerializeField]
+        private string defaultWeaponSetName;
 
         [Header("Animation & Combat Interface")]
         [Tooltip("Reference to the CharacterAnimator component for detailed animation control.")]
-        [SerializeField] private CharacterAnimator characterAnimator;
-        // No longer needs direct reference to AIMovementSensor for its own attack loop
+        [SerializeField]
+        private CharacterAnimator characterAnimator;
 
         // --- State for FSM-driven actions ---
         private Coroutine _activeActionCoroutine; // For timed actions like strike if not purely anim event driven
 
-        void Awake()
+        private NavMeshAgent _agent;
+        private MeleeWeaponDamage _currentMeleeDamageDealer; // Cached from the instantiated weapon
+        private GameObject _currentWeaponInstance;
+
+        private Animator _unityAnimator; // Standard Unity Animator
+
+        private void Awake()
         {
             _unityAnimator = GetComponent<Animator>();
             if (_unityAnimator == null)
             {
                 Debug.LogError($"[{gameObject.name}] NPCController: Unity Animator component not found!", this);
-                enabled = false; return;
+                enabled = false;
+                return;
             }
 
             if (characterAnimator == null)
             {
                 characterAnimator = GetComponent<CharacterAnimator>();
                 if (characterAnimator == null)
+                    Debug.LogWarning(
+                        $"[{gameObject.name}] NPCController: CharacterAnimator component not found. Combat animations might not work as expected.",
+                        this);
+            }
+
+
+            if (_agent == null)
+            {
+                _agent = GetComponent<NavMeshAgent>();
+                if (_agent == null)
                 {
-                    Debug.LogWarning($"[{gameObject.name}] NPCController: CharacterAnimator component not found. Combat animations might not work as expected.", this);
+                    Debug.LogError($"[{gameObject.name}] NPCController: NavMeshAgent component not found!", this);
+                    enabled = false;
+                    return;
                 }
             }
 
-            if (weaponAttachmentBone == null) Debug.LogWarning($"[{gameObject.name}] NPCController: WeaponAttachmentBone not set. Weapons cannot be equipped.", this);
+            if (weaponAttachmentBone == null)
+                Debug.LogWarning(
+                    $"[{gameObject.name}] NPCController: WeaponAttachmentBone not set. Weapons cannot be equipped.",
+                    this);
 
             InitializeDefaultWeapon();
+        }
+
+        private void Update()
+        {
+            // Get world-space velocity
+            Vector3 worldVelocity = _agent.velocity;
+
+            // Convert to local space (relative to NPC's facing direction)
+            Vector3 localVelocity = transform.InverseTransformDirection(worldVelocity);
+
+            // Set blend tree parameters using your API
+            characterAnimator.SetLocomotionDirection(
+                forwardAmount: localVelocity.z,
+                sidewaysAmount: localVelocity.x
+            );
+        }
+
+        // Optional: Stop any active timed actions if the component is disabled.
+        private void OnDestroy() // Or OnDisable if you re-enable
+        {
+            if (_activeActionCoroutine != null) StopCoroutine(_activeActionCoroutine);
         }
 
         private void InitializeDefaultWeapon()
         {
             if (!string.IsNullOrEmpty(defaultWeaponSetName))
-            {
                 EquipWeaponSet(defaultWeaponSetName);
-            }
-            else if (arsenal.Length > 0)
-            {
-                EquipWeaponSet(arsenal[0].name); // Fallback to the first item
-            }
+            else if (arsenal.Length > 0) EquipWeaponSet(arsenal[0].name); // Fallback to the first item
         }
 
         public void EquipWeaponSet(string weaponSetName)
         {
             if (_unityAnimator == null || weaponAttachmentBone == null)
             {
-                Debug.LogError($"[{gameObject.name}] NPCController: Animator or WeaponAttachmentBone missing, cannot equip weapon set '{weaponSetName}'.", this);
+                Debug.LogError(
+                    $"[{gameObject.name}] NPCController: Animator or WeaponAttachmentBone missing, cannot equip weapon set '{weaponSetName}'.",
+                    this);
                 return;
             }
 
-            foreach (ArsenalItem item in arsenal)
-            {
+            foreach (var item in arsenal)
                 if (item.name == weaponSetName)
                 {
                     if (_currentWeaponInstance != null) Destroy(_currentWeaponInstance);
@@ -107,52 +129,48 @@ namespace Characters.NPC
 
                         _currentMeleeDamageDealer = _currentWeaponInstance.GetComponentInChildren<MeleeWeaponDamage>();
                         if (_currentMeleeDamageDealer == null)
-                        {
-                            Debug.LogWarning($"[{gameObject.name}] NPCController: Equipped weapon '{item.name}' does not have a MeleeWeaponDamage component in its hierarchy.", this);
-                        }
+                            Debug.LogWarning(
+                                $"[{gameObject.name}] NPCController: Equipped weapon '{item.name}' does not have a MeleeWeaponDamage component in its hierarchy.",
+                                this);
                     }
 
                     if (item.animatorController != null)
-                    {
                         _unityAnimator.runtimeAnimatorController = item.animatorController;
-                    }
                     else
-                    {
-                        Debug.LogWarning($"[{gameObject.name}] NPCController: No RuntimeAnimatorController specified for weapon set '{item.name}'. Using existing or default.", this);
-                    }
-                    Debug.Log($"[{gameObject.name}] NPCController: Equipped weapon set '{item.name}'. Damage dealer found: {_currentMeleeDamageDealer != null}");
+                        Debug.LogWarning(
+                            $"[{gameObject.name}] NPCController: No RuntimeAnimatorController specified for weapon set '{item.name}'. Using existing or default.",
+                            this);
+                    Debug.Log(
+                        $"[{gameObject.name}] NPCController: Equipped weapon set '{item.name}'. Damage dealer found: {_currentMeleeDamageDealer != null}");
                     if (_currentMeleeDamageDealer != null)
-                    {
-                        _currentMeleeDamageDealer.SetOwner(this.gameObject); // 'this.gameObject' is the NPC itself
-                    }
+                        _currentMeleeDamageDealer.SetOwner(gameObject); // 'this.gameObject' is the NPC itself
                     return;
                 }
-            }
+
             Debug.LogWarning($"[{gameObject.name}] NPCController: Weapon set named '{weaponSetName}' not found.", this);
         }
 
         /// <summary>
-        /// Gets the currently active MeleeWeaponDamage component.
+        ///     Gets the currently active MeleeWeaponDamage component.
         /// </summary>
-        public MeleeWeaponDamage GetCurrentMeleeDamageDealer() => _currentMeleeDamageDealer;
+        public MeleeWeaponDamage GetCurrentMeleeDamageDealer()
+        {
+            return _currentMeleeDamageDealer;
+        }
 
         /// <summary>
-        /// Gets the current ArsenalItem details if a weapon is equipped.
+        ///     Gets the current ArsenalItem details if a weapon is equipped.
         /// </summary>
         public ArsenalItem? GetCurrentArsenalItem()
         {
             if (_currentWeaponInstance != null && _unityAnimator != null)
-            {
                 // Find which arsenal item corresponds to the current animator controller (or weapon name if stored)
                 foreach (var item in arsenal)
-                {
-                    if (item.animatorController == _unityAnimator.runtimeAnimatorController || 
-                        (_currentWeaponInstance.name.StartsWith(item.weaponPrefab.name))) // Check based on prefab name match
-                    {
+                    if (item.animatorController == _unityAnimator.runtimeAnimatorController ||
+                        _currentWeaponInstance.name.StartsWith(item.weaponPrefab
+                            .name)) // Check based on prefab name match
                         return item;
-                    }
-                }
-            }
+
             return null;
         }
 
@@ -175,8 +193,8 @@ namespace Characters.NPC
         }
 
         /// <summary>
-        /// Initiates the strike animation. Hitbox enabling/disabling should be handled
-        /// by Animation Events calling EnableHitbox/DisableHitbox on this NPCController instance.
+        ///     Initiates the strike animation. Hitbox enabling/disabling should be handled
+        ///     by Animation Events calling EnableHitbox/DisableHitbox on this NPCController instance.
         /// </summary>
         public void ExecuteStrikeAction()
         {
@@ -189,8 +207,8 @@ namespace Characters.NPC
         }
 
         /// <summary>
-        /// Signals that the strike animation sequence (from FSM perspective) is complete.
-        /// Resets any animation states related to the active strike.
+        ///     Signals that the strike animation sequence (from FSM perspective) is complete.
+        ///     Resets any animation states related to the active strike.
         /// </summary>
         public void FinishStrikeAction()
         {
@@ -199,7 +217,7 @@ namespace Characters.NPC
             characterAnimator.SetAttacking(false); // Reset the "Attack" bool
             // Hitbox should have been disabled by an Animation Event already.
         }
-        
+
         public void ExecuteRecoveryAction()
         {
             if (characterAnimator == null) return;
@@ -220,7 +238,11 @@ namespace Characters.NPC
                 _currentMeleeDamageDealer.EnableCollider();
                 Debug.Log($"[{gameObject.name}] NPCController: Hitbox ENABLED via Animation Event.");
             }
-            else Debug.LogWarning($"[{gameObject.name}] NPCController: EnableHitbox called, but no MeleeDamageDealer cached for current weapon.");
+            else
+            {
+                Debug.LogWarning(
+                    $"[{gameObject.name}] NPCController: EnableHitbox called, but no MeleeDamageDealer cached for current weapon.");
+            }
         }
 
         public void DisableHitbox()
@@ -230,15 +252,10 @@ namespace Characters.NPC
                 _currentMeleeDamageDealer.DisableCollider();
                 Debug.Log($"[{gameObject.name}] NPCController: Hitbox DISABLED via Animation Event.");
             }
-            else Debug.LogWarning($"[{gameObject.name}] NPCController: DisableHitbox called, but no MeleeDamageDealer cached for current weapon.");
-        }
-
-        // Optional: Stop any active timed actions if the component is disabled.
-        void OnDestroy() // Or OnDisable if you re-enable
-        {
-            if (_activeActionCoroutine != null)
+            else
             {
-                StopCoroutine(_activeActionCoroutine);
+                Debug.LogWarning(
+                    $"[{gameObject.name}] NPCController: DisableHitbox called, but no MeleeDamageDealer cached for current weapon.");
             }
         }
 
@@ -248,6 +265,29 @@ namespace Characters.NPC
             Debug.Log($"[{gameObject.name}] NPCController: Action - Finish Recovery.");
             characterAnimator.SetRecovery(false); // Reset the "Recovery" bool
             // Hitbox should have been disabled by an Animation Event already.
+        }
+
+        [Serializable]
+        public struct ArsenalItem
+        {
+            public string name;
+            public GameObject weaponPrefab; // Simplified: assumes one primary weapon object per set
+
+            public RuntimeAnimatorController animatorController; // Specific animator for this weapon set
+
+            // Weapon-specific timings (can be used by FSM states or this controller)
+            [Header("Attack Parameters")] public float telegraphDuration;
+            public float strikeDuration;
+
+            [FormerlySerializedAs("recoverDuration")]
+            public float recoveryDuration;
+
+            public float damageMultiplier;
+
+            [Header("VFX/SFX References")] public string telegraphEffectName;
+
+            public string strikeEffectName;
+            // public MeleeWeaponDamage meleeDamageDealer; // If you want to link it directly here
         }
     }
 }

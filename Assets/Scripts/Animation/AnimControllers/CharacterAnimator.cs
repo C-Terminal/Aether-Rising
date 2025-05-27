@@ -210,8 +210,8 @@ namespace Animation.AnimControllers
         {
             if (_animator != null)
             {
-                _animator.SetFloat(_animIDSpeedForward, forwardAmount);
-                _animator.SetFloat(_animIDSpeedSideways, sidewaysAmount);
+                _animator.SetFloat(_animIDSpeedForward, forwardAmount, 0.2f, Time.deltaTime);
+                _animator.SetFloat(_animIDSpeedSideways, sidewaysAmount, 0.2f, Time.deltaTime);
             }
         }
 
