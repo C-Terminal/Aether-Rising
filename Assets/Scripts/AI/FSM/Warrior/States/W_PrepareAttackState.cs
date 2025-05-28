@@ -7,6 +7,9 @@ using System.Collections;
 using Characters.NPC;
 using UnityEngine;
 using UnityEngine.AI;
+using Cysharp.Threading.Tasks;
+using System.Threading;
+using System;
 
 namespace AI.FSM.Warrior.States
 {
@@ -16,17 +19,40 @@ namespace AI.FSM.Warrior.States
         private NavMeshAgent agent;
         private Vector3 attackPosition; // Position to move to before telegraphing
         private CharacterAnimator charAnim; // Assuming this is used
-        private float telegraphDuration = 1.0f; // Example, configure this
-        private float timer;
         
-        // Add coroutine reference
-        private Coroutine _telegraphCoroutine;
+        // Remove timer-based telegraph - now purely animation driven
+        private bool _isTelegraphing = false;
+        
+        // Cancellation token for safety timeout (optional fallback)
+        private CancellationTokenSource _safetyTimeoutTokenSource;
+        private float _safetyTimeoutDuration = 5f; // Safety fallback timeout
+
+        void OnEnable()
+        {
+            // Subscribe to telegraph complete event
+            EventManager.AddListener<AttackTelegraphCompleteEventData>(OnTelegraphComplete);
+        }
+
+        void OnDisable()
+        {
+            // Unsubscribe from telegraph complete event
+            EventManager.RemoveListener<AttackTelegraphCompleteEventData>(OnTelegraphComplete);
+            
+            // Clean up safety timeout
+            if (_safetyTimeoutTokenSource != null)
+            {
+                _safetyTimeoutTokenSource.Cancel();
+                _safetyTimeoutTokenSource.Dispose();
+                _safetyTimeoutTokenSource = null;
+            }
+        }
 
         public void OnStateEnter()
         {
-            EventManager.AddListener<AttackTelegraphCompleteEventData>(OnTelegraphComplete);
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering PrepareAttackState.");
-            timer = 0f;
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering PrepareAttackState - Animation Driven Mode.");
+            
+            _isTelegraphing = true;
+            
             //TODO: Decide attack position
             // Potentially move to an optimal attack spot if not already there
             // attackPosition = CalculateOptimalAttackPosition();
@@ -36,118 +62,136 @@ namespace AI.FSM.Warrior.States
 
             agent.isStopped = true; // Stop to telegraph
             _stateMachineNew.RotateToFacePlayer();
-            // charAnim.PlayTelegraphAnimation(); // Or set a bool/trigger
+            
             var npcController = _stateMachineNew.NpcController;
             if (npcController != null)
             {
+                // Start the telegraph action - this should trigger the telegraph animation
                 npcController.StartTelegraphAction();
 
                 var arsenalItem = npcController.GetCurrentArsenalItem();
+                float telegraphDuration = 1.0f; // Default fallback
+                
                 if (arsenalItem.HasValue && arsenalItem.Value.telegraphDuration > 0)
                 {
                     telegraphDuration = arsenalItem.Value.telegraphDuration;
                     Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph duration set to: {telegraphDuration}");
-
-
-                    // Raise event for additional telegraph effects
-                    // Trigger the telegraph event for VFX Manager to handle
-                    EventManager.TriggerEvent(new AttackTelegraphEventData
-                    {
-                        AttackerTransform = transform,
-                        WeaponType = arsenalItem.Value.name,
-                        Duration = telegraphDuration,
-                        TargetTransform = _stateMachineNew.Player,
-                        EffectIntensity = 1.0f
-                    });
-                    // You can also directly call VFXManager if you prefer that approach
-                    // VFXManager.Instance.SpawnTelegraphEffect(arsenalItem.Value.name, transform.position, transform.rotation, telegraphDuration);
                 }
                 else
                 {
-                    telegraphDuration = 1.0f; // Default fallback
-                    Debug.Log(
-                        $"[{_stateMachineNew.gameObject.name}] Using default telegraph duration: {telegraphDuration}");
-                    EventManager.TriggerEvent(new AttackTelegraphEventData
-                    {
-                        AttackerTransform = transform,
-                        WeaponType = arsenalItem.Value.name,
-                        Duration = telegraphDuration,
-                        TargetTransform = _stateMachineNew.Player,
-                        EffectIntensity = 1.0f
-                    });
+                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Using default telegraph duration: {telegraphDuration}");
                 }
+
+                // Update safety timeout duration based on telegraph duration
+                _safetyTimeoutDuration = telegraphDuration + 2f; // Add buffer time
+
+                // Raise event for additional telegraph effects
+                // Trigger the telegraph event for VFX Manager to handle
+                EventManager.TriggerEvent(new AttackTelegraphEventData
+                {
+                    AttackerTransform = transform,
+                    WeaponType = arsenalItem?.name ?? "Unknown",
+                    Duration = telegraphDuration,
+                    TargetTransform = _stateMachineNew.Player,
+                    EffectIntensity = 1.0f
+                });
             }
 
             // charAnim.SetAiming(true); // Example of a "tell"
             
-            // Start the telegraph coroutine
-            // if (_telegraphCoroutine != null)
-            // {
-            //     StopCoroutine(_telegraphCoroutine);
-            // }
-            // _telegraphCoroutine = StartCoroutine(TelegraphCoroutine());
-            
+            // Start safety timeout as a fallback in case animation event never fires
+            StartSafetyTimeout();
         }
 
-        private void OnTelegraphComplete(AttackTelegraphCompleteEventData obj)
+        /// <summary>
+        /// Safety timeout to prevent getting stuck if animation event doesn't fire
+        /// </summary>
+        private void StartSafetyTimeout()
         {
-            
-            
-            if (obj.AttackerTransform.gameObject == _stateMachineNew.gameObject) // Only respond to events from this NPC
+            if (_safetyTimeoutTokenSource != null)
             {
-                var npcController = _stateMachineNew.NpcController;
-                if (npcController != null)
+                _safetyTimeoutTokenSource.Cancel();
+                _safetyTimeoutTokenSource.Dispose();
+            }
+            
+            _safetyTimeoutTokenSource = new CancellationTokenSource();
+            SafetyTimeoutTask(_safetyTimeoutTokenSource.Token).Forget();
+        }
+
+        private async UniTaskVoid SafetyTimeoutTask(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout started ({_safetyTimeoutDuration}s)");
+                
+                await UniTask.Delay(TimeSpan.FromSeconds(_safetyTimeoutDuration), cancellationToken: cancellationToken);
+                
+                // If we reach here, the animation event didn't fire within the timeout
+                if (_isTelegraphing)
                 {
-                    npcController.EndTelegraphAction();
+                    Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] Telegraph animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
+                    TransitionToStrikeState();
                 }
-                // Proceed with FSM transition logic
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout cancelled (completed normally).");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout error: {ex.Message}");
+                // Force completion on error
+                if (_isTelegraphing && _stateMachineNew != null)
+                {
+                    TransitionToStrikeState();
+                }
             }
         }
 
-        // Coroutine to handle telegraph timing
-        private IEnumerator TelegraphCoroutine()
+        /// <summary>
+        /// Called by EventManager when AttackTelegraphCompleteEventData is fired
+        /// This should be triggered by an animation event
+        /// </summary>
+        private void OnTelegraphComplete(AttackTelegraphCompleteEventData eventData)
         {
-            float elapsedTime = 0f;
-            
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Starting telegraph coroutine. Duration: {telegraphDuration}s");
-            
-            while (elapsedTime < telegraphDuration)
+            // Only respond to events from this NPC
+            if (eventData.AttackerTransform.gameObject != _stateMachineNew.gameObject)
             {
-                elapsedTime += Time.deltaTime;
-                timer = elapsedTime; // Update the timer variable for consistency
-                
-                // Log progress periodically
-                if (Mathf.Floor(elapsedTime * 2) > Mathf.Floor((elapsedTime - Time.deltaTime) * 2))
-                {
-                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph progress: {elapsedTime:F2}/{telegraphDuration:F2}");
-                }
-                
-                yield return null;
+                return;
             }
             
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph complete after {elapsedTime:F2} seconds");
+            if (!_isTelegraphing)
+            {
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Received telegraph complete event but not currently telegraphing. Ignoring.");
+                return;
+            }
             
-            // Only transition if we're still the current attacker
-            if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph complete event received from animation.");
+            
+            // Cancel the safety timeout since we received the proper event
+            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
             {
-                
-                TransitionToStrikeState();
+                _safetyTimeoutTokenSource.Cancel();
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Safety timeout cancelled by animation event.");
             }
-            else
+            
+            var npcController = _stateMachineNew.NpcController;
+            if (npcController != null)
             {
-                Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] Lost attack slot during telegraph coroutine!");
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
+                npcController.EndTelegraphAction();
             }
+            
+            // Proceed with FSM transition logic
+            TransitionToStrikeState();
         }
 
         public void OnStateUpdate(float deltaTime)
         {
+            if (!_isTelegraphing) return;
+            
             _stateMachineNew.RotateToFacePlayer();
             
-            // We don't need to update the timer or check for transition here anymore
-            // The coroutine handles that independently
-            
+            // The state now waits purely for animation events
             // Only check for player distance and other conditions that might interrupt the telegraph
             if (_stateMachineNew.Player != null && 
                 Vector3.Distance(transform.position, _stateMachineNew.Player.position) > _stateMachineNew.GetMaxEngagementDistance())
@@ -168,11 +212,11 @@ namespace AI.FSM.Warrior.States
                     Reason = "TargetOutOfRange"
                 });
                 
-                // Stop the telegraph coroutine
-                if (_telegraphCoroutine != null)
+                // Cancel safety timeout and mark as not telegraphing
+                _isTelegraphing = false;
+                if (_safetyTimeoutTokenSource != null)
                 {
-                    StopCoroutine(_telegraphCoroutine);
-                    _telegraphCoroutine = null;
+                    _safetyTimeoutTokenSource.Cancel();
                 }
         
                 // Switch to chase state
@@ -182,45 +226,42 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateExit()
         {
-            // Stop the telegraph coroutine if it's running
-            if (_telegraphCoroutine != null)
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
+            
+            _isTelegraphing = false;
+            
+            // Cancel the safety timeout if it's running
+            if (_safetyTimeoutTokenSource != null)
             {
-                StopCoroutine(_telegraphCoroutine);
-                _telegraphCoroutine = null;
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Stopped telegraph coroutine on state exit.");
+                if (!_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+                {
+                    _safetyTimeoutTokenSource.Cancel();
+                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Cancelled safety timeout on state exit.");
+                }
+                _safetyTimeoutTokenSource.Dispose();
+                _safetyTimeoutTokenSource = null;
             }
             
             charAnim.SetTelegraphing(false); // Or reset bool
             charAnim.SetAiming(false); // Clean up tell
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
         }
 
         private void TransitionToStrikeState()
         {
+            if (!_isTelegraphing) return; // Prevent multiple transitions
+            
+            _isTelegraphing = false;
+            
             // Check if still allowed to attack by NPCManager
             if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
             {
-                // End telegraph animation/effects
-                var npcController = _stateMachineNew.NpcController;
-                if (npcController != null) npcController.EndTelegraphAction();
-
-                // Trigger event for telegraph completion
-                EventManager.TriggerEvent(new AttackTelegraphCompleteEventData
-                {
-                    AttackerTransform = transform,
-                    WeaponType = npcController?.GetCurrentArsenalItem()?.name ?? "Unknown"
-                });
-
-                // Switch to strike state
-                Debug.Log(
-                    $"[{_stateMachineNew.gameObject.name}] Transitioning from PrepareAttackState to StrikeState.");
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Transitioning from PrepareAttackState to StrikeState.");
                 _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
             }
             else
             {
                 // Lost attack slot during telegraph
-                Debug.Log(
-                    $"[{_stateMachineNew.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
                 _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
             }
         }

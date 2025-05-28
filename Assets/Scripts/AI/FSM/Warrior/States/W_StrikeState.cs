@@ -1,11 +1,13 @@
-﻿using AI.FSM.NPC;
+﻿using System;
+using AI.FSM.NPC;
 using AI.FSM.NPC.States;
 using Animation.AnimControllers;
 using Characters.NPC;
 using Combat.Weapons.Melee;
 using Core.Events;
 using Core.Events.Combat;
-using System.Collections;
+using Cysharp.Threading.Tasks;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -13,25 +15,25 @@ namespace AI.FSM.Warrior.States
 {
     public class W_StrikeState : MonoBehaviour, IState
     {
-        private StateMachineNew _stateMachineNew;
+        private StateMachineNew _machineNew;
         private NavMeshAgent _agent;
         private CharacterAnimator _charAnim;
         private NPCController _npcController; // Corrected type and name
         private MeleeWeaponDamage _meleeWeapon;
 
         // Configurable or obtained from NPCController.GetCurrentArsenalItem()
-        //TODO: change this garbage
         private float _strikeAnimDurationEstimate = 1.2f; // Fallback if not from ArsenalItem
         private float _timer;
         private bool _hasClearedAttackerSlot;
+        private bool _isStrikeCompleted; // Flag to track if strike was completed via event
         
-        // Add coroutine reference
-        private Coroutine _strikeCoroutine;
+        // Add cancellation token source for UniTask
+        private CancellationTokenSource _strikeCancellationTokenSource;
 
         void Awake()
         {
-            _stateMachineNew = GetComponent<StateMachineNew>();
-            _charAnim = _stateMachineNew.CharAnim;
+            _machineNew = GetComponent<StateMachineNew>();
+            _charAnim = _machineNew.CharAnim;
             // meleeWeapon = GetComponentInChildren<MeleeWeaponDamage>(); // Or get via NPCController if it manages weapon instances
         }
        
@@ -40,20 +42,20 @@ namespace AI.FSM.Warrior.States
         /// </summary>
         public void InitReferences(StateMachineNew machineNew)
         {
-            _stateMachineNew = machineNew;
-            if (_stateMachineNew == null)
+            _machineNew = machineNew;
+            if (_machineNew == null)
             {
                 Debug.LogError($"[{gameObject.name}] W_StrikeState: WarriorStateMachine reference not passed during InitReferences!", this);
                 enabled = false; return;
             }
 
-            _agent = _stateMachineNew.Agent;
-            _charAnim = _stateMachineNew.CharAnim;
-            _npcController = _stateMachineNew.NpcController; // Get NPCController from StateMachine
+            _agent = _machineNew.Agent;
+            _charAnim = _machineNew.CharAnim;
+            _npcController = _machineNew.NpcController; // Get NPCController from StateMachine
 
-            if (_agent == null) Debug.LogError($"[{_stateMachineNew.gameObject.name}] W_StrikeState: NavMeshAgent not found via StateMachine!", this);
-            if (_charAnim == null) Debug.LogError($"[{_stateMachineNew.gameObject.name}] W_StrikeState: CharacterAnimator not found via StateMachine!", this);
-            if (_npcController == null) Debug.LogError($"[{_stateMachineNew.gameObject.name}] W_StrikeState: NPCController not found via StateMachine!", this);
+            if (_agent == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_StrikeState: NavMeshAgent not found via StateMachine!", this);
+            if (_charAnim == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_StrikeState: CharacterAnimator not found via StateMachine!", this);
+            if (_npcController == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_StrikeState: NPCController not found via StateMachine!", this);
 
             // Get MeleeWeaponDamage from the NPCController's current weapon
             if (_npcController != null)
@@ -70,24 +72,28 @@ namespace AI.FSM.Warrior.States
             {
                  // Fallback if NPCController didn't provide it (e.g. unarmed, or error)
                 _meleeWeapon = GetComponentInChildren<MeleeWeaponDamage>(); // Less ideal, direct dependency
-                if (_meleeWeapon == null) Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] W_StrikeState: MeleeWeaponDamage not found via NPCController or as child. Hit detection might fail.", this);
+                if (_meleeWeapon == null) Debug.LogWarning($"[{_machineNew.gameObject.name}] W_StrikeState: MeleeWeaponDamage not found via NPCController or as child. Hit detection might fail.", this);
             }
         }
 
         public void OnStateEnter()
         {
-            if (_stateMachineNew == null || _npcController == null || _charAnim == null || _agent == null)
+            if (_machineNew == null || _npcController == null || _charAnim == null || _agent == null)
             {
                 Debug.LogError($"[{gameObject.name ?? "W_StrikeState"}] Critical reference missing in OnStateEnter. State cannot execute. Forcing Idle.");
-                _stateMachineNew?.SwitchState(_stateMachineNew.FindState<IdleState>()); // Failsafe
+                _machineNew?.SwitchState(_machineNew.FindState<IdleState>()); // Failsafe
                 return;
             }
 
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering StrikeState.");
+            Debug.Log($"[{_machineNew.gameObject.name}] Entering StrikeState.");
             _timer = 0f;
             _hasClearedAttackerSlot = false;
-            _stateMachineNew.RotateToFacePlayer();
+            _isStrikeCompleted = false; // Reset completion flag
+            _machineNew.RotateToFacePlayer();
             _agent.isStopped = true; // Stop movement for the strike
+
+            // Subscribe to the strike complete event
+            EventManager.AddListener<AttackStrikeCompleteEventData>(OnStrikeComplete);
 
             // Execute the strike animation
             _npcController.ExecuteStrikeAction();
@@ -101,7 +107,7 @@ namespace AI.FSM.Warrior.States
                 {
                     AttackerTransform = transform,
                     WeaponType = arsenalItem.Value.name,
-                    TargetTransform = _stateMachineNew.Player,
+                    TargetTransform = _machineNew.Player,
                     StrikePower = 1.0f // Could be variable based on NPC state/weapon
                 });
         
@@ -112,63 +118,135 @@ namespace AI.FSM.Warrior.States
                 }
             }
             
-            // Start the strike coroutine
-            if (_strikeCoroutine != null)
+            // Start the strike UniTask
+            if (_strikeCancellationTokenSource != null)
             {
-                StopCoroutine(_strikeCoroutine);
+                _strikeCancellationTokenSource.Cancel();
+                _strikeCancellationTokenSource.Dispose();
             }
-            _strikeCoroutine = StartCoroutine(StrikeCoroutine());
+            _strikeCancellationTokenSource = new CancellationTokenSource();
+            
+            // Fire and forget the UniTask
+            StrikeTask(_strikeCancellationTokenSource.Token).Forget();
         }
         
-        // Coroutine to handle strike timing
-        private IEnumerator StrikeCoroutine()
+        // UniTask to handle strike timing
+        private async UniTaskVoid StrikeTask(CancellationToken cancellationToken)
         {
-            float elapsedTime = 0f;
-            
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Starting strike coroutine. Duration: {_strikeAnimDurationEstimate}s");
-            
-            while (elapsedTime < _strikeAnimDurationEstimate)
+            try
             {
-                elapsedTime += Time.deltaTime;
-                _timer = elapsedTime; // Update the timer variable for consistency
+                float elapsedTime = 0f;
                 
-                // Log progress periodically
-                if (Mathf.Floor(elapsedTime * 2) > Mathf.Floor((elapsedTime - Time.deltaTime) * 2))
+                Debug.Log($"[{_machineNew.gameObject.name}] Starting strike UniTask. Duration: {_strikeAnimDurationEstimate}s");
+                
+                while (elapsedTime < _strikeAnimDurationEstimate)
                 {
-                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Strike progress: {elapsedTime:F2}/{_strikeAnimDurationEstimate:F2}");
+                    // Check for cancellation
+                    cancellationToken.ThrowIfCancellationRequested();
+                    
+                    await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
+                    elapsedTime += Time.deltaTime;
+                    _timer = elapsedTime; // Update the timer variable for consistency
+                    
+                    // Log progress periodically
+                    if (Mathf.Floor(elapsedTime * 2) > Mathf.Floor((elapsedTime - Time.deltaTime) * 2))
+                    {
+                        Debug.Log($"[{_machineNew.gameObject.name}] Strike progress: {elapsedTime:F2}/{_strikeAnimDurationEstimate:F2}");
+                    }
                 }
                 
-                yield return null;
+                Debug.Log($"[{_machineNew.gameObject.name}] Strike complete after {elapsedTime:F2} seconds");
+                FinishStrikeSequence();
             }
-            
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Strike complete after {elapsedTime:F2} seconds");
-            FinishStrikeSequence();
+            catch (OperationCanceledException)
+            {
+                Debug.Log($"[{_machineNew.gameObject.name}] Strike UniTask was cancelled.");
+                // Check if cancellation was due to animation event completion
+                if (_isStrikeCompleted)
+                {
+                    Debug.Log($"[{_machineNew.gameObject.name}] Strike UniTask cancelled due to animation event completion.");
+                }
+                // Don't call FinishStrikeSequence() when cancelled - let the event handler manage it
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[{_machineNew.gameObject.name}] Strike UniTask error: {ex.Message}");
+                // Handle error gracefully - could transition to safe state
+                if (_machineNew != null)
+                {
+                    FinishStrikeSequence();
+                }
+            }
         }
 
         public void OnStateUpdate(float deltaTime)
         {
-            if (_stateMachineNew == null) return;
+            if (_machineNew == null) return;
 
             // Keep facing player during strike if desired (some games allow slight tracking)
             // _machineNew.RotateToFacePlayer(); 
             
             // We don't need to update the timer or check for transition here anymore
-            // The coroutine handles that independently
+            // The UniTask handles that independently
             
             // Any other state-specific logic that needs to run every frame can go here
+        }
+        
+        // Event handler for animation-driven strike completion
+        private void OnStrikeComplete(AttackStrikeCompleteEventData obj)
+        {
+            if (obj.AttackerTransform.gameObject == _machineNew.gameObject) // Only respond to events from this NPC
+            {
+                Debug.Log($"[{_machineNew.gameObject.name}] Strike completion event received from animation.");
+                
+                _isStrikeCompleted = true; // Mark as completed via event
+                
+                // Cancel the UniTask if it's still running
+                if (_strikeCancellationTokenSource != null && !_strikeCancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    _strikeCancellationTokenSource.Cancel();
+                    Debug.Log($"[{_machineNew.gameObject.name}] Strike UniTask cancelled by animation event.");
+                }
+                
+                // Let NPCController handle its cleanup
+                var npcController = _machineNew.NpcController;
+                if (npcController != null) 
+                {
+                    npcController.FinishStrikeAction();
+                }
+                
+                // Clear attacker slot if not already done
+                if (!_hasClearedAttackerSlot && NPCManager.Instance != null)
+                {
+                    NPCManager.Instance.ClearAttackingNPC(_machineNew);
+                    _hasClearedAttackerSlot = true;
+                }
+                
+                // Proceed with FSM transition logic
+                IState recoverState = _machineNew.FindState<W_RecoverState>();
+                if (recoverState != null)
+                {
+                    _machineNew.SwitchState(recoverState);
+                }
+                else
+                {
+                    _machineNew.SwitchState(_machineNew.FindState<W_CirclingState>()); // Fallback
+                }
+            }
         }
         
         // In W_StrikeState.cs
         public void HandleStrikeComplete()
         {
-            // This can be called by an animation event through WarriorAnimationEvents
+            // This method is kept for backwards compatibility but may not be needed
+            // if you're using the event system exclusively
+            Debug.LogWarning($"[{_machineNew.gameObject.name}] HandleStrikeComplete() called - consider using event system instead.");
             
-            // Stop the coroutine if it's still running
-            if (_strikeCoroutine != null)
+            // Cancel the UniTask if it's still running
+            if (_strikeCancellationTokenSource != null && !_strikeCancellationTokenSource.Token.IsCancellationRequested)
             {
-                StopCoroutine(_strikeCoroutine);
-                _strikeCoroutine = null;
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Strike coroutine stopped by animation event.");
+                _strikeCancellationTokenSource.Cancel();
+                Debug.Log($"[{_machineNew.gameObject.name}] Strike UniTask cancelled by HandleStrikeComplete.");
             }
             
             FinishStrikeSequence();
@@ -176,26 +254,37 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateExit()
         {
-            if (_stateMachineNew == null) return;
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting StrikeState.");
+            if (_machineNew == null) return;
+            Debug.Log($"[{_machineNew.gameObject.name}] Exiting StrikeState.");
             
-            // Stop the strike coroutine if it's running
-            if (_strikeCoroutine != null)
+            // Unsubscribe from the strike complete event
+            EventManager.RemoveListener<AttackStrikeCompleteEventData>(OnStrikeComplete);
+            
+            // Cancel the strike UniTask if it's running
+            if (_strikeCancellationTokenSource != null)
             {
-                StopCoroutine(_strikeCoroutine);
-                _strikeCoroutine = null;
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Stopped strike coroutine on state exit.");
+                if (!_strikeCancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    _strikeCancellationTokenSource.Cancel();
+                    Debug.Log($"[{_machineNew.gameObject.name}] Cancelled strike UniTask on state exit.");
+                }
+                _strikeCancellationTokenSource.Dispose();
+                _strikeCancellationTokenSource = null;
             }
 
             // Ensure NPCController cleans up its strike state (e.g., SetAttacking(false))
-            _npcController?.FinishStrikeAction();
+            // Only call this if the strike wasn't completed via animation event
+            if (!_isStrikeCompleted)
+            {
+                _npcController?.FinishStrikeAction();
+            }
 
             // Failsafe: Ensure the attack slot is cleared if not done by timer/event
             if (!_hasClearedAttackerSlot && NPCManager.Instance != null)
             {
-                NPCManager.Instance.ClearAttackingNPC(_stateMachineNew);
+                NPCManager.Instance.ClearAttackingNPC(_machineNew);
                 _hasClearedAttackerSlot = true; // Mark as cleared
-                Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] W_StrikeState: Cleared attacking NPC slot in OnStateExit (failsafe).");
+                Debug.LogWarning($"[{_machineNew.gameObject.name}] W_StrikeState: Cleared attacking NPC slot in OnStateExit (failsafe).");
             }
         }
 
@@ -204,11 +293,11 @@ namespace AI.FSM.Warrior.States
         /// </summary>
         public void FinishStrikeSequence() // Could be called by Animation Event via StateMachine
         {
-            if (_stateMachineNew == null) return;
+            if (_machineNew == null) return;
 
             if (!_hasClearedAttackerSlot && NPCManager.Instance != null)
             {
-                NPCManager.Instance.ClearAttackingNPC(_stateMachineNew);
+                NPCManager.Instance.ClearAttackingNPC(_machineNew);
                 _hasClearedAttackerSlot = true;
             }
             
@@ -217,14 +306,14 @@ namespace AI.FSM.Warrior.States
             _npcController?.FinishStrikeAction();
 
             // Transition to Recover or Circle
-            IState recoverState = _stateMachineNew.FindState<W_RecoverState>();
+            IState recoverState = _machineNew.FindState<W_RecoverState>();
             if (recoverState != null)
             {
-                _stateMachineNew.SwitchState(recoverState);
+                _machineNew.SwitchState(recoverState);
             }
             else
             {
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>()); // Fallback
+                _machineNew.SwitchState(_machineNew.FindState<W_CirclingState>()); // Fallback
             }
         }
     }

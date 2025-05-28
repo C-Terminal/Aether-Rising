@@ -1,8 +1,11 @@
-﻿using AI.FSM.NPC;
+﻿using System;
 using AI.FSM.NPC.States;
 using Animation.AnimControllers;
 using Characters.NPC;
-using System.Collections;
+using Cysharp.Threading.Tasks;
+using System.Threading;
+using Core.Events;
+using Core.Events.Combat;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -15,17 +18,37 @@ namespace AI.FSM.Warrior.States
         private CharacterAnimator _charAnim;
         private NPCController _npcController;
 
-        // Configurable or obtained from NPCController.GetCurrentArsenalItem()
-        private float _recoveryDurationEstimate = 0.5f; // Fallback if not from ArsenalItem
-        private float _timer;
+        // Remove timer-based recovery - now purely animation driven
+        private bool _isRecovering = false;
         
-        // Add coroutine reference
-        private Coroutine _recoveryCoroutine;
+        // Cancellation token for safety timeout (optional fallback)
+        private CancellationTokenSource _safetyTimeoutTokenSource;
+        private float _safetyTimeoutDuration = 5f; // Safety fallback timeout
 
         void Awake()
         {
             _machineNew = GetComponent<StateMachineNew>();
             _charAnim = _machineNew.CharAnim;
+        }
+
+        void OnEnable()
+        {
+            // Subscribe to recovery complete event
+            EventManager.AddListener<AttackRecoveryCompleteEventData>(HandleRecoveryComplete);
+        }
+
+        void OnDisable()
+        {
+            // Unsubscribe from recovery complete event
+            EventManager.RemoveListener<AttackRecoveryCompleteEventData>(HandleRecoveryComplete);
+            
+            // Clean up safety timeout
+            if (_safetyTimeoutTokenSource != null)
+            {
+                _safetyTimeoutTokenSource.Cancel();
+                _safetyTimeoutTokenSource.Dispose();
+                _safetyTimeoutTokenSource = null;
+            }
         }
        
         /// <summary>
@@ -47,16 +70,6 @@ namespace AI.FSM.Warrior.States
             if (_agent == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_RecoverState: NavMeshAgent not found via StateMachine!", this);
             if (_charAnim == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_RecoverState: CharacterAnimator not found via StateMachine!", this);
             if (_npcController == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_RecoverState: NPCController not found via StateMachine!", this);
-
-            // Get recovery duration from the NPCController's current weapon if available
-            if (_npcController != null)
-            {
-                var currentArsenalItem = _npcController.GetCurrentArsenalItem();
-                if(currentArsenalItem.HasValue && currentArsenalItem.Value.recoveryDuration > 0)
-                {
-                    _recoveryDurationEstimate = currentArsenalItem.Value.recoveryDuration;
-                }
-            }
         }
 
         public void OnStateEnter()
@@ -68,81 +81,96 @@ namespace AI.FSM.Warrior.States
                 return;
             }
 
-            Debug.Log($"[{_machineNew.gameObject.name}] Entering RecoverState.");
-            _timer = 0f;
+            Debug.Log($"[{_machineNew.gameObject.name}] Entering RecoverState - Animation Driven Mode.");
+            
+            _isRecovering = true;
             _agent.isStopped = true; // Stay stopped during recovery
 
-            // Execute the recovery action
+            // Execute the recovery action - this should trigger the recovery animation
             _npcController.ExecuteRecoveryAction();
-    
-            // Get weapon info for recovery-specific duration
-            var arsenalItem = _npcController.GetCurrentArsenalItem();
-            if (arsenalItem.HasValue)
-            {
-                // Update recovery duration from arsenal item if available
-                if (arsenalItem.Value.recoveryDuration > 0)
-                {
-                    _recoveryDurationEstimate = arsenalItem.Value.recoveryDuration;
-                }
-            }
             
-            // Start the recovery coroutine
-            if (_recoveryCoroutine != null)
-            {
-                StopCoroutine(_recoveryCoroutine);
-            }
-            _recoveryCoroutine = StartCoroutine(RecoveryCoroutine());
+            // Start safety timeout as a fallback in case animation event never fires
+            StartSafetyTimeout();
         }
-        
-        // Coroutine to handle recovery timing
-        private IEnumerator RecoveryCoroutine()
+
+        /// <summary>
+        /// Safety timeout to prevent getting stuck if animation event doesn't fire
+        /// </summary>
+        private void StartSafetyTimeout()
         {
-            float elapsedTime = 0f;
-            
-            Debug.Log($"[{_machineNew.gameObject.name}] Starting recovery coroutine. Duration: {_recoveryDurationEstimate}s");
-            
-            while (elapsedTime < _recoveryDurationEstimate)
+            if (_safetyTimeoutTokenSource != null)
             {
-                elapsedTime += Time.deltaTime;
-                _timer = elapsedTime; // Update the timer variable for consistency
-                
-                // Log progress periodically (less frequent than strike for shorter duration)
-                if (Mathf.Floor(elapsedTime * 4) > Mathf.Floor((elapsedTime - Time.deltaTime) * 4))
-                {
-                    Debug.Log($"[{_machineNew.gameObject.name}] Recovery progress: {elapsedTime:F2}/{_recoveryDurationEstimate:F2}");
-                }
-                
-                yield return null;
+                _safetyTimeoutTokenSource.Cancel();
+                _safetyTimeoutTokenSource.Dispose();
             }
             
-            Debug.Log($"[{_machineNew.gameObject.name}] Recovery complete after {elapsedTime:F2} seconds");
-            FinishRecoverySequence();
+            _safetyTimeoutTokenSource = new CancellationTokenSource();
+            SafetyTimeoutTask(_safetyTimeoutTokenSource.Token).Forget();
+        }
+
+        private async UniTaskVoid SafetyTimeoutTask(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Debug.Log($"[{_machineNew.gameObject.name}] Safety timeout started ({_safetyTimeoutDuration}s)");
+                
+                await UniTask.Delay(TimeSpan.FromSeconds(_safetyTimeoutDuration), cancellationToken: cancellationToken);
+                
+                // If we reach here, the animation event didn't fire within the timeout
+                if (_isRecovering)
+                {
+                    Debug.LogWarning($"[{_machineNew.gameObject.name}] Recovery animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
+                    FinishRecoverySequence();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.Log($"[{_machineNew.gameObject.name}] Safety timeout cancelled (recovery completed normally).");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[{_machineNew.gameObject.name}] Safety timeout error: {ex.Message}");
+                // Force completion on error
+                if (_isRecovering && _machineNew != null)
+                {
+                    FinishRecoverySequence();
+                }
+            }
         }
 
         public void OnStateUpdate(float deltaTime)
         {
-            if (_machineNew == null) return;
+            if (_machineNew == null || !_isRecovering) return;
 
             // Keep facing player during recovery if desired
             // _machineNew.RotateToFacePlayer(); 
             
-            // We don't need to update the timer or check for transition here anymore
-            // The coroutine handles that independently
-            
+            // The state now waits purely for animation events
             // Any other state-specific logic that needs to run every frame can go here
         }
         
-        // In W_RecoverState.cs
-        public void HandleRecoveryComplete()
+        /// <summary>
+        /// Called by EventManager when AttackRecoveryCompleteEventData is fired
+        /// This should be triggered by an animation event
+        /// </summary>
+        public void HandleRecoveryComplete(AttackRecoveryCompleteEventData eventData)
         {
-            // This can be called by an animation event through WarriorAnimationEvents
+            // Verify this event is for our character (if eventData contains character reference)
+            // if (eventData.character != _npcController) return;
             
-            // Stop the coroutine if it's still running
-            if (_recoveryCoroutine != null)
+            if (!_isRecovering)
             {
-                StopCoroutine(_recoveryCoroutine);
-                _recoveryCoroutine = null;
-                Debug.Log($"[{_machineNew.gameObject.name}] Recovery coroutine stopped by animation event.");
+                Debug.Log($"[{_machineNew.gameObject.name}] Received recovery complete event but not currently recovering. Ignoring.");
+                return;
+            }
+            
+            Debug.Log($"[{_machineNew.gameObject.name}] Recovery complete event received from animation.");
+            
+            // Cancel the safety timeout since we received the proper event
+            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+            {
+                _safetyTimeoutTokenSource.Cancel(); 
+                Debug.Log($"[{_machineNew.gameObject.name}] Safety timeout cancelled by animation event.");
             }
             
             FinishRecoverySequence();
@@ -153,12 +181,18 @@ namespace AI.FSM.Warrior.States
             if (_machineNew == null) return;
             Debug.Log($"[{_machineNew.gameObject.name}] Exiting RecoverState.");
             
-            // Stop the recovery coroutine if it's running
-            if (_recoveryCoroutine != null)
+            _isRecovering = false;
+            
+            // Cancel the safety timeout if it's running
+            if (_safetyTimeoutTokenSource != null)
             {
-                StopCoroutine(_recoveryCoroutine);
-                _recoveryCoroutine = null;
-                Debug.Log($"[{_machineNew.gameObject.name}] Stopped recovery coroutine on state exit.");
+                if (!_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+                {
+                    _safetyTimeoutTokenSource.Cancel();
+                    Debug.Log($"[{_machineNew.gameObject.name}] Cancelled safety timeout on state exit.");
+                }
+                _safetyTimeoutTokenSource.Dispose();
+                _safetyTimeoutTokenSource = null;
             }
 
             // Ensure NPCController cleans up its recovery state
@@ -166,11 +200,15 @@ namespace AI.FSM.Warrior.States
         }
 
         /// <summary>
-        /// Called when the recovery sequence is considered finished (by timer or animation event).
+        /// Called when the recovery sequence is considered finished (by animation event or safety timeout).
         /// </summary>
-        public void FinishRecoverySequence() // Could be called by Animation Event via StateMachine
+        private void FinishRecoverySequence()
         {
-            if (_machineNew == null) return;
+            if (_machineNew == null || !_isRecovering) return;
+            
+            _isRecovering = false;
+            
+            Debug.Log($"[{_machineNew.gameObject.name}] Finishing recovery sequence.");
             
             // NPCController's FinishRecoveryAction should have been called by now if anim event driven,
             // or call it here if this method is the primary completion point.
