@@ -90,31 +90,46 @@ namespace Characters.ExoGray.Scripts
         public event Action<bool> OnTargetInRangeStatusChanged;
 
         /// <summary>
-        ///     Utility method to make the agent face its currentTarget (on the horizontal plane).
-        ///     States can call this when they want the NPC to orient towards the target.
+        ///     Rotates the NPC to face a target on the horizontal plane with optional speed and smoothing.
         /// </summary>
-        public void FaceCurrentTarget()
+        /// <param name="target">The target to face.</param>
+        /// <param name="rotationSpeed">Override for rotation speed. If negative, uses NavMeshAgent.angularSpeed.</param>
+        /// <param name="snapThreshold">Minimum angle before snapping (in degrees). Set 0 to disable snapping.</param>
+        /// <param name="useSmoothDamp">Whether to use SmoothDamp-like interpolation for more natural ease-in/out.</param>
+        public void FaceTarget(Transform target, float rotationSpeed = -1f, float snapThreshold = 1f,
+            bool useSmoothDamp = false)
         {
-            if (currentTarget == null || _agent == null) return;
+            if (target == null || _agent == null) return;
 
-            var direction = (currentTarget.position - transform.position).normalized;
-            if (direction == Vector3.zero) return; // Already at target or invalid direction
+            var direction = target.position - transform.position;
+            direction.y = 0f;
 
-            var lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0f, direction.z));
+            if (direction == Vector3.zero) return;
 
-            // Use NavMeshAgent's angularSpeed for consistent rotation behavior if it's steering
-            // Otherwise, use a Slerp like before or agent.updateRotation = true and let it handle.
-            if (_agent.updateRotation)
+            var targetRotation = Quaternion.LookRotation(direction.normalized);
+            var angle = Quaternion.Angle(transform.rotation, targetRotation);
+
+            // Snap if within threshold
+            if (snapThreshold > 0f && angle < snapThreshold)
             {
-                // If agent is handling rotation, this might not be strictly needed unless for instant snap or fine-tuning
-                // For now, let's assume states might want finer control or to call this when agent's updateRotation is false.
+                transform.rotation = targetRotation;
+                return;
             }
 
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation,
-                Time.deltaTime * _agent.angularSpeed * Mathf.Deg2Rad);
-            // Alternatively, if agent.updateRotation = true, and you just set a destination, it might face it.
-            // But for standing and facing, this explicit rotation is good.
+            var effectiveSpeed = rotationSpeed > 0f ? rotationSpeed : _agent.angularSpeed * Mathf.Deg2Rad;
+
+            if (_agent.updateRotation)
+                // Agent is handling rotation, but we're overriding it manually here
+                _agent.updateRotation = false;
+
+            if (useSmoothDamp)
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation,
+                    effectiveSpeed * Time.deltaTime * angle);
+            else
+                transform.rotation =
+                    Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * effectiveSpeed);
         }
+
 
         /// <summary>
         ///     Sets the primary target for this sensor. Called by FSM states.
@@ -131,8 +146,8 @@ namespace Characters.ExoGray.Scripts
                 // Immediate check and event fire could also happen here if needed
             }
         }
-        
-            
+
+
         /// <summary>
         ///     Simple method to move to target position.
         ///     Call this from your state machine to move to the target position.
@@ -144,5 +159,4 @@ namespace Characters.ExoGray.Scripts
             _agent.SetDestination(currentTarget.position);
         }
     }
-
 }

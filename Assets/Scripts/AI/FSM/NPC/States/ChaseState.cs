@@ -82,7 +82,7 @@ namespace AI.FSM.NPC.States
                 playerTarget = _stateMachineNew.Player;
                 agent.SetDestination(playerTarget.position); // Or NPCStateMachine.MoveToPlayer());
                 if (Vector3.Distance(transform.position, playerTarget.position) <= agent.stoppingDistance)
-                    movementSensor.FaceCurrentTarget(); // Or NPCStateMachine.RotateToFacePlayer()
+                    movementSensor.FaceTarget(playerTarget); // Or NPCStateMachine.RotateToFacePlayer()
             }
 
             if (_stateMachineNew.IsPlayerAttackable())

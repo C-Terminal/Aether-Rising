@@ -4,6 +4,7 @@ using System.Linq;
 using AI.FSM.NPC.States;
 using AI.FSM.Warrior.States;
 using Animation.AnimControllers;
+using Characters.ExoGray.Scripts;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
 using UnityEngine;
@@ -42,6 +43,8 @@ namespace AI.FSM.NPC
         public override Health NpcHealth { get; set; }
         public Health WarriorHealth { get; private set; } // Reference to the Health component
 
+        
+        public new AIMovementSensor AIMovementSensor { get; private set; }
         public new IState CurrentState { get; private set; }
 
         // State Tracking
@@ -76,6 +79,11 @@ namespace AI.FSM.NPC
             if (WarriorHealth == null)
                 Debug.LogError($"[{gameObject.name}] WarriorStateMachine: Health component not found!", this);
 
+            // Cache AIMovementSensor component
+            AIMovementSensor = GetComponent<AIMovementSensor>();
+            if (AIMovementSensor == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: AIMovementSensor component not found!", this);
+            
             // Find and cache all IState components attached to this GameObject
             states = GetComponents<IState>().ToList();
             if (states == null || states.Count == 0)
@@ -257,16 +265,11 @@ namespace AI.FSM.NPC
         // Smoothly rotates the NPC to face the player's position on the horizontal plane
         public override void RotateToFacePlayer()
         {
-            if (Player == null) return;
-            var npcToPlayerDir = Player.position - transform.position;
-            npcToPlayerDir.y = 0; // Ignore vertical difference
-            if (npcToPlayerDir == Vector3.zero) return; // Avoid zero vector rotation
-            var targetRotation = Quaternion.LookRotation(npcToPlayerDir);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotSpeed);
+            this.AIMovementSensor.FaceTarget(Player);
         }
 
         // Finds a state component of a specific type T attached to this GameObject
-        public T FindState<T>() where T : class, IState
+        public new T FindState<T>() where T : class, IState
         {
             // Efficiently finds the state using LINQ FirstOrDefault
             return states.FirstOrDefault(s => s is T) as T;

@@ -123,7 +123,7 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateUpdate(float deltaTime)
         {
-            _stateMachineNew.RotateToFacePlayer(); // Keep facing
+            _stateMachineNew.RotateToFacePlayer();
             
             // We don't need to update the timer or check for transition here anymore
             // The coroutine handles that independently

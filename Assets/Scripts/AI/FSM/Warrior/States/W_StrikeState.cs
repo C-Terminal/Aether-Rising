@@ -13,7 +13,7 @@ namespace AI.FSM.Warrior.States
 {
     public class W_StrikeState : MonoBehaviour, IState
     {
-        private StateMachineNew _machineNew;
+        private StateMachineNew _stateMachineNew;
         private NavMeshAgent _agent;
         private CharacterAnimator _charAnim;
         private NPCController _npcController; // Corrected type and name
@@ -29,8 +29,8 @@ namespace AI.FSM.Warrior.States
 
         void Awake()
         {
-            _machineNew = GetComponent<StateMachineNew>();
-            _charAnim = _machineNew.CharAnim;
+            _stateMachineNew = GetComponent<StateMachineNew>();
+            _charAnim = _stateMachineNew.CharAnim;
             // meleeWeapon = GetComponentInChildren<MeleeWeaponDamage>(); // Or get via NPCController if it manages weapon instances
         }
        
@@ -39,20 +39,20 @@ namespace AI.FSM.Warrior.States
         /// </summary>
         public void InitReferences(StateMachineNew machineNew)
         {
-            _machineNew = machineNew;
-            if (_machineNew == null)
+            _stateMachineNew = machineNew;
+            if (_stateMachineNew == null)
             {
                 Debug.LogError($"[{gameObject.name}] W_StrikeState: WarriorStateMachine reference not passed during InitReferences!", this);
                 enabled = false; return;
             }
 
-            _agent = _machineNew.Agent;
-            _charAnim = _machineNew.CharAnim;
-            _npcController = _machineNew.NpcController; // Get NPCController from StateMachine
+            _agent = _stateMachineNew.Agent;
+            _charAnim = _stateMachineNew.CharAnim;
+            _npcController = _stateMachineNew.NpcController; // Get NPCController from StateMachine
 
-            if (_agent == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_StrikeState: NavMeshAgent not found via StateMachine!", this);
-            if (_charAnim == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_StrikeState: CharacterAnimator not found via StateMachine!", this);
-            if (_npcController == null) Debug.LogError($"[{_machineNew.gameObject.name}] W_StrikeState: NPCController not found via StateMachine!", this);
+            if (_agent == null) Debug.LogError($"[{_stateMachineNew.gameObject.name}] W_StrikeState: NavMeshAgent not found via StateMachine!", this);
+            if (_charAnim == null) Debug.LogError($"[{_stateMachineNew.gameObject.name}] W_StrikeState: CharacterAnimator not found via StateMachine!", this);
+            if (_npcController == null) Debug.LogError($"[{_stateMachineNew.gameObject.name}] W_StrikeState: NPCController not found via StateMachine!", this);
 
             // Get MeleeWeaponDamage from the NPCController's current weapon
             if (_npcController != null)
@@ -69,23 +69,23 @@ namespace AI.FSM.Warrior.States
             {
                  // Fallback if NPCController didn't provide it (e.g. unarmed, or error)
                 _meleeWeapon = GetComponentInChildren<MeleeWeaponDamage>(); // Less ideal, direct dependency
-                if (_meleeWeapon == null) Debug.LogWarning($"[{_machineNew.gameObject.name}] W_StrikeState: MeleeWeaponDamage not found via NPCController or as child. Hit detection might fail.", this);
+                if (_meleeWeapon == null) Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] W_StrikeState: MeleeWeaponDamage not found via NPCController or as child. Hit detection might fail.", this);
             }
         }
 
         public void OnStateEnter()
         {
-            if (_machineNew == null || _npcController == null || _charAnim == null || _agent == null)
+            if (_stateMachineNew == null || _npcController == null || _charAnim == null || _agent == null)
             {
                 Debug.LogError($"[{gameObject.name ?? "W_StrikeState"}] Critical reference missing in OnStateEnter. State cannot execute. Forcing Idle.");
-                _machineNew?.SwitchState(_machineNew.FindState<IdleState>()); // Failsafe
+                _stateMachineNew?.SwitchState(_stateMachineNew.FindState<IdleState>()); // Failsafe
                 return;
             }
 
-            Debug.Log($"[{_machineNew.gameObject.name}] Entering StrikeState.");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering StrikeState.");
             _timer = 0f;
             _hasClearedAttackerSlot = false;
-            _machineNew.RotateToFacePlayer();
+            _stateMachineNew.RotateToFacePlayer();
             _agent.isStopped = true; // Stop movement for the strike
 
             // Execute the strike animation
@@ -100,7 +100,7 @@ namespace AI.FSM.Warrior.States
                 {
                     AttackerTransform = transform,
                     WeaponType = arsenalItem.Value.name,
-                    TargetTransform = _machineNew.Player,
+                    TargetTransform = _stateMachineNew.Player,
                     StrikePower = 1.0f // Could be variable based on NPC state/weapon
                 });
         
@@ -124,7 +124,7 @@ namespace AI.FSM.Warrior.States
         {
             float elapsedTime = 0f;
             
-            Debug.Log($"[{_machineNew.gameObject.name}] Starting strike coroutine. Duration: {_strikeAnimDurationEstimate}s");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Starting strike coroutine. Duration: {_strikeAnimDurationEstimate}s");
             
             while (elapsedTime < _strikeAnimDurationEstimate)
             {
@@ -134,19 +134,19 @@ namespace AI.FSM.Warrior.States
                 // Log progress periodically
                 if (Mathf.Floor(elapsedTime * 2) > Mathf.Floor((elapsedTime - Time.deltaTime) * 2))
                 {
-                    Debug.Log($"[{_machineNew.gameObject.name}] Strike progress: {elapsedTime:F2}/{_strikeAnimDurationEstimate:F2}");
+                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Strike progress: {elapsedTime:F2}/{_strikeAnimDurationEstimate:F2}");
                 }
                 
                 yield return null;
             }
             
-            Debug.Log($"[{_machineNew.gameObject.name}] Strike complete after {elapsedTime:F2} seconds");
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Strike complete after {elapsedTime:F2} seconds");
             FinishStrikeSequence();
         }
 
         public void OnStateUpdate(float deltaTime)
         {
-            if (_machineNew == null) return;
+            if (_stateMachineNew == null) return;
 
             // Keep facing player during strike if desired (some games allow slight tracking)
             // _machineNew.RotateToFacePlayer(); 
@@ -167,7 +167,7 @@ namespace AI.FSM.Warrior.States
             {
                 StopCoroutine(_strikeCoroutine);
                 _strikeCoroutine = null;
-                Debug.Log($"[{_machineNew.gameObject.name}] Strike coroutine stopped by animation event.");
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Strike coroutine stopped by animation event.");
             }
             
             FinishStrikeSequence();
@@ -175,15 +175,15 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateExit()
         {
-            if (_machineNew == null) return;
-            Debug.Log($"[{_machineNew.gameObject.name}] Exiting StrikeState.");
+            if (_stateMachineNew == null) return;
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting StrikeState.");
             
             // Stop the strike coroutine if it's running
             if (_strikeCoroutine != null)
             {
                 StopCoroutine(_strikeCoroutine);
                 _strikeCoroutine = null;
-                Debug.Log($"[{_machineNew.gameObject.name}] Stopped strike coroutine on state exit.");
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Stopped strike coroutine on state exit.");
             }
 
             // Ensure NPCController cleans up its strike state (e.g., SetAttacking(false))
@@ -192,9 +192,9 @@ namespace AI.FSM.Warrior.States
             // Failsafe: Ensure the attack slot is cleared if not done by timer/event
             if (!_hasClearedAttackerSlot && NPCManager.Instance != null)
             {
-                NPCManager.Instance.ClearAttackingNPC(_machineNew);
+                NPCManager.Instance.ClearAttackingNPC(_stateMachineNew);
                 _hasClearedAttackerSlot = true; // Mark as cleared
-                Debug.LogWarning($"[{_machineNew.gameObject.name}] W_StrikeState: Cleared attacking NPC slot in OnStateExit (failsafe).");
+                Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] W_StrikeState: Cleared attacking NPC slot in OnStateExit (failsafe).");
             }
         }
 
@@ -203,11 +203,11 @@ namespace AI.FSM.Warrior.States
         /// </summary>
         public void FinishStrikeSequence() // Could be called by Animation Event via StateMachine
         {
-            if (_machineNew == null) return;
+            if (_stateMachineNew == null) return;
 
             if (!_hasClearedAttackerSlot && NPCManager.Instance != null)
             {
-                NPCManager.Instance.ClearAttackingNPC(_machineNew);
+                NPCManager.Instance.ClearAttackingNPC(_stateMachineNew);
                 _hasClearedAttackerSlot = true;
             }
             
@@ -216,14 +216,14 @@ namespace AI.FSM.Warrior.States
             _npcController?.FinishStrikeAction();
 
             // Transition to Recover or Circle
-            IState recoverState = _machineNew.FindState<W_RecoverState>();
+            IState recoverState = _stateMachineNew.FindState<W_RecoverState>();
             if (recoverState != null)
             {
-                _machineNew.SwitchState(recoverState);
+                _stateMachineNew.SwitchState(recoverState);
             }
             else
             {
-                _machineNew.SwitchState(_machineNew.FindState<W_CirclingState>()); // Fallback
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>()); // Fallback
             }
         }
     }
