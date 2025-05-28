@@ -2,6 +2,8 @@
 using AI.FSM.NPC;
 using AI.FSM.Warrior.States;
 using Characters.NPC;
+using Core.Events;
+using Core.Events.Combat;
 using UnityEngine;
 using VFX;
 
@@ -92,6 +94,23 @@ namespace Animation.AnimControllers
             // For now, let's assume the FSM state (e.g., W_PrepareAttackState) uses its own timer
             // or the NPCController handles this internally if it has more complex sequence logic.
             // This is a good place for a Debug.Log to confirm the event fires.
+            
+
+                var npcController = GetComponent<NPCController>();
+                if (npcController != null)
+                {
+                    var arsenalItem = npcController.GetCurrentArsenalItem();
+                    if (arsenalItem.HasValue)
+                    {
+                        EventManager.TriggerEvent(new AttackTelegraphCompleteEventData
+                        {
+                            AttackerTransform = transform,
+                            WeaponType = arsenalItem.Value.name
+                        });
+                    }
+                }
+            
+
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ namespace AI.FSM.Warrior.States
         private MeleeWeaponDamage _meleeWeapon;
 
         // Configurable or obtained from NPCController.GetCurrentArsenalItem()
+        //TODO: change this garbage
         private float _strikeAnimDurationEstimate = 1.2f; // Fallback if not from ArsenalItem
         private float _timer;
         private bool _hasClearedAttackerSlot;

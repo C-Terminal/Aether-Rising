@@ -4,6 +4,7 @@ using Animation.AnimControllers;
 using Core.Events;
 using Core.Events.Combat;
 using System.Collections;
+using Characters.NPC;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -23,6 +24,7 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateEnter()
         {
+            EventManager.AddListener<AttackTelegraphCompleteEventData>(OnTelegraphComplete);
             Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering PrepareAttackState.");
             timer = 0f;
             //TODO: Decide attack position
@@ -76,16 +78,33 @@ namespace AI.FSM.Warrior.States
                 }
             }
 
-            charAnim.SetAiming(true); // Example of a "tell"
+            // charAnim.SetAiming(true); // Example of a "tell"
             
             // Start the telegraph coroutine
             // if (_telegraphCoroutine != null)
             // {
             //     StopCoroutine(_telegraphCoroutine);
             // }
-            _telegraphCoroutine = StartCoroutine(TelegraphCoroutine());
+            // _telegraphCoroutine = StartCoroutine(TelegraphCoroutine());
+            
         }
-        
+
+        private void OnTelegraphComplete(AttackTelegraphCompleteEventData obj)
+        {
+            
+            
+            if (obj.AttackerTransform.gameObject == _stateMachineNew.gameObject) // Only respond to events from this NPC
+            {
+                var npcController = _stateMachineNew.NpcController;
+                if (npcController != null)
+                {
+                    npcController.EndTelegraphAction();
+                }
+                // Proceed with FSM transition logic
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
+            }
+        }
+
         // Coroutine to handle telegraph timing
         private IEnumerator TelegraphCoroutine()
         {
@@ -112,6 +131,7 @@ namespace AI.FSM.Warrior.States
             // Only transition if we're still the current attacker
             if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
             {
+                
                 TransitionToStrikeState();
             }
             else
