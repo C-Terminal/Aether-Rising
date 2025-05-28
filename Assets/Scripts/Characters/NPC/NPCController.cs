@@ -177,19 +177,18 @@ namespace Characters.NPC
 
         // --- FSM-Driven Combat Actions ---
 
-        public void StartTelegraphAction()
+        public void  StartTelegraphAction()
         {
             if (characterAnimator == null) return;
             Debug.Log($"[{gameObject.name}] NPCController: Action - StartTelegraph.");
-            characterAnimator.SetTelegraphing(true); // Assuming "Aiming" bool is used for telegraph
-            // Or: characterAnimator.TriggerTelegraph(); if you have a specific trigger
+            characterAnimator.SetTelegraphing(true);
         }
 
         public void EndTelegraphAction()
         {
             if (characterAnimator == null) return;
             Debug.Log($"[{gameObject.name}] NPCController: Action - EndTelegraph.");
-            characterAnimator.SetAiming(false);
+            characterAnimator.SetTelegraphing(false);
         }
 
         /// <summary>
