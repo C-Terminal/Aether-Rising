@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using AI.FSM.NPC.States;
 using AI.FSM.Warrior.States;
+using AI.NPC.Movement;
 using Animation.AnimControllers;
-using Characters.ExoGray.Scripts;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
 using UnityEngine;
@@ -12,7 +12,7 @@ using UnityEngine.AI;
 
 namespace AI.FSM.NPC
 {
-    public class WarriorStateMachine : StateMachineNew // Assumes a base StateMachine class exists
+    public class WarriorStateMachine : StateMachineNew, IPerceptionAwareFSM
     {
         // Configuration
         [Tooltip("Warrior's Field Of View for initiating chase")] [SerializeField]
@@ -44,7 +44,7 @@ namespace AI.FSM.NPC
         public Health WarriorHealth { get; private set; } // Reference to the Health component
 
         
-        public new AIMovementSensor AIMovementSensor { get; private set; }
+        public AIMovementController MovementController { get; private set; }
         public new IState CurrentState { get; private set; }
 
         // State Tracking
@@ -78,11 +78,10 @@ namespace AI.FSM.NPC
             WarriorHealth = GetComponent<Health>();
             if (WarriorHealth == null)
                 Debug.LogError($"[{gameObject.name}] WarriorStateMachine: Health component not found!", this);
-
-            // Cache AIMovementSensor component
-            AIMovementSensor = GetComponent<AIMovementSensor>();
-            if (AIMovementSensor == null)
-                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: AIMovementSensor component not found!", this);
+        
+            MovementController = GetComponent<AIMovementController>();
+            if (MovementController == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: AIMovementController component not found!", this);
             
             // Find and cache all IState components attached to this GameObject
             states = GetComponents<IState>().ToList();
@@ -265,7 +264,7 @@ namespace AI.FSM.NPC
         // Smoothly rotates the NPC to face the player's position on the horizontal plane
         public override void RotateToFacePlayer()
         {
-            this.AIMovementSensor.FaceTarget(Player);
+            this.MovementController.RotateToward(Player);
         }
 
         // Finds a state component of a specific type T attached to this GameObject
@@ -500,24 +499,19 @@ namespace AI.FSM.NPC
         /// </summary>
         public void NotifyPlayerLostSight()
         {
-            if (IsPlayerDead || IsDead) return;
+            Debug.Log($"[{gameObject.name}] WarriorStateMachine: Lost sight of player.");
 
-            // If currently in an active chase/attack/circle state, might switch to a "Search" or "Wander" state
-            // For now, let's assume if LOS is broken while in trigger, it might revert to Wander or a specific Search state.
-            if (CurrentState is ChaseState || CurrentState is W_CirclingState)
+            HasSpottedPlayer = false;
+
+            if (IsInEngagedState())
             {
-                Debug.Log(
-                    $"[{gameObject.name}] WarriorStateMachine: Player sight lost (still in trigger). Switching to Wander/Search.");
-                // TODO: Implement a W_SearchState that moves towards last known player position
-                // For now, fallback to Wander.
-                IState wanderState = FindState<WanderState>();
-                if (wanderState != null)
-                    SwitchState(wanderState);
+                IState fallback = FindFirstAvailableState(typeof(WanderState), typeof(IdleState));
+                if (fallback != null)
+                    SwitchState(fallback);
                 else
-                    SwitchState(FindState<IdleState>()); // Fallback
+                    Debug.LogWarning($"[{gameObject.name}] No fallback state found after losing sight.");
             }
-            // HasSpottedPlayer remains true because the NPC is still "aware" and in combat mode,
-            // just lost immediate sight. NPCManager registration also remains.
         }
+
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 using AI.FSM.Warrior.States;
-using Characters.ExoGray.Scripts;
+using AI.NPC.Movement;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -14,7 +14,7 @@ namespace AI.FSM.NPC.States
         private float npcSpeed = 4f;
 
         private NavMeshAgent agent;
-        private AIMovementSensor movementSensor;
+        private AIMovementController _movementController;
         private IState previousStateBeforeChase; // Store the state before entering chase
         private Transform playerTarget;
         private FSM.StateMachineNew _stateMachineNew;
@@ -36,12 +36,12 @@ namespace AI.FSM.NPC.States
             if (_stateMachineNew == null) Debug.LogError($"[ChaseState - {gameObject.name}] : NPCStateMachine not found.");
             agent = GetComponent<NavMeshAgent>();
             if (agent == null) Debug.LogError($"[ChaseState - {gameObject.name}] : No NavMesh Agent found.");
-            movementSensor = GetComponent<AIMovementSensor>();
+            _movementController = GetComponent<AIMovementController>();
         }
 
         public void OnStateEnter()
         {
-            movementSensor.SetTarget(_stateMachineNew.Player);
+            _movementController.MoveTo(playerTarget);
             if (agent != null && agent.enabled)
             {
                 agent.speed = npcSpeed;
@@ -80,9 +80,9 @@ namespace AI.FSM.NPC.States
             {
                 //TODO: add boolean to prevent repeat calls
                 playerTarget = _stateMachineNew.Player;
-                agent.SetDestination(playerTarget.position); // Or NPCStateMachine.MoveToPlayer());
+                agent.SetDestination(playerTarget.position);
                 if (Vector3.Distance(transform.position, playerTarget.position) <= agent.stoppingDistance)
-                    movementSensor.FaceTarget(playerTarget); // Or NPCStateMachine.RotateToFacePlayer()
+                    _movementController.RotateToward(playerTarget); 
             }
 
             if (_stateMachineNew.IsPlayerAttackable())

@@ -162,6 +162,7 @@ namespace AI.FSM.Warrior.States
             
             if (!_isTelegraphing)
             {
+                //TODO: maybe transition to a different state, OR change the conditions for exiting Locomotion cuz this is weird
                 Debug.Log($"[{_stateMachineNew.gameObject.name}] Received telegraph complete event but not currently telegraphing. Ignoring.");
                 return;
             }

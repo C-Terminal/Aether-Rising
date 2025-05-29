@@ -3,7 +3,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Animation.AnimControllers;
-using Characters.ExoGray.Scripts;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
 using UnityEngine;
@@ -24,7 +23,6 @@ namespace AI.FSM
         
         public abstract NPCController NpcController { get;  set;  }
         
-        public AIMovementSensor AIMovementSensor { get; set; }
 
         public List<IState> states = new List<IState>();
         public IState CurrentState { get; protected set; }
