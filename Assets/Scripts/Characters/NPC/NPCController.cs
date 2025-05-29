@@ -263,6 +263,7 @@ namespace Characters.NPC
             if (characterAnimator == null) return;
             Debug.Log($"[{gameObject.name}] NPCController: Action - Finish Recovery.");
             characterAnimator.SetRecovery(false); // Reset the "Recovery" bool
+            characterAnimator.SetAttacking(false);
             // Hitbox should have been disabled by an Animation Event already.
         }
 
