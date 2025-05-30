@@ -76,7 +76,7 @@ namespace AI.FSM
             CurrentState?.OnStateExit();
             PreviousState = CurrentState;
             CurrentState = newState;
-            Debug.Log($"[{gameObject.name}] Switched State: {PreviousState?.GetType().Name} -> {CurrentState?.GetType().Name}");
+            // Debug.Log($"[{gameObject.name}] Switched State: {PreviousState?.GetType().Name} -> {CurrentState?.GetType().Name}");
             CurrentState.OnStateEnter();
         }
 

@@ -25,6 +25,8 @@ namespace AI.FSM.Warrior.States
         private CancellationTokenSource _safetyTimeoutTokenSource;
         private float _safetyTimeoutDuration = 5f; // Safety fallback timeout
 
+        private bool _hasCompletedRecovery = false;
+
         void Awake()
         {
             _machineNew = GetComponent<StateMachineNew>();
@@ -112,31 +114,29 @@ namespace AI.FSM.Warrior.States
         {
             try
             {
-                Debug.Log($"[{_machineNew.gameObject.name}] Safety timeout started ({_safetyTimeoutDuration}s)");
-                
+                Debug.Log($"[{_machineNew.gameObject.name}] Recovery safety timeout started ({_safetyTimeoutDuration}s)");
                 await UniTask.Delay(TimeSpan.FromSeconds(_safetyTimeoutDuration), cancellationToken: cancellationToken);
-                
-                // If we reach here, the animation event didn't fire within the timeout
+
                 if (_isRecovering)
                 {
-                    Debug.LogWarning($"[{_machineNew.gameObject.name}] Recovery animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
-                    FinishRecoverySequence();
+                    Debug.LogWarning($"[{_machineNew.gameObject.name}] Recovery timeout hit. Forcing finish.");
+                    CompleteRecoveryAndTransition();
                 }
             }
             catch (OperationCanceledException)
             {
-                Debug.Log($"[{_machineNew.gameObject.name}] Safety timeout cancelled (recovery completed normally).");
+                // Normal case
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[{_machineNew.gameObject.name}] Safety timeout error: {ex.Message}");
-                // Force completion on error
-                if (_isRecovering && _machineNew != null)
+                Debug.LogError($"[{_machineNew.gameObject.name}] Recovery timeout error: {ex.Message}");
+                if (_isRecovering)
                 {
-                    FinishRecoverySequence();
+                    CompleteRecoveryAndTransition();
                 }
             }
         }
+
 
         public void OnStateUpdate(float deltaTime)
         {
@@ -155,49 +155,26 @@ namespace AI.FSM.Warrior.States
         /// </summary>
         public void HandleRecoveryComplete(AttackRecoveryCompleteEventData eventData)
         {
-            // Verify this event is for our character (if eventData contains character reference)
-            // if (eventData.character != _npcController) return;
-            //TODO: verify why this never syncs up 
+            
             if (!_isRecovering)
             {
-                Debug.Log($"[{_machineNew.gameObject.name}] Received recovery complete event but not currently recovering. Ignoring.");
+                Debug.Log($"[{_machineNew.gameObject.name}] Recovery event received while not recovering. Ignoring.");
                 return;
             }
-            
+
             Debug.Log($"[{_machineNew.gameObject.name}] Recovery complete event received from animation.");
-            
-            // Cancel the safety timeout since we received the proper event
-            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
-            {
-                _safetyTimeoutTokenSource.Cancel(); 
-                Debug.Log($"[{_machineNew.gameObject.name}] Safety timeout cancelled by animation event.");
-            }
-            
-            FinishRecoverySequence();
+            CompleteRecoveryAndTransition();
         }
+
 
         public void OnStateExit()
         {
             if (_machineNew == null) return;
-            Debug.Log($"[{_machineNew.gameObject.name}] Exiting RecoverState.");
-            
-            _isRecovering = false;
-            
-            // Cancel the safety timeout if it's running
-            if (_safetyTimeoutTokenSource != null)
-            {
-                if (!_safetyTimeoutTokenSource.Token.IsCancellationRequested)
-                {
-                    _safetyTimeoutTokenSource.Cancel();
-                    Debug.Log($"[{_machineNew.gameObject.name}] Cancelled safety timeout on state exit.");
-                }
-                _safetyTimeoutTokenSource.Dispose();
-                _safetyTimeoutTokenSource = null;
-            }
 
-            // Ensure NPCController cleans up its recovery state
-            _npcController?.FinishRecoveryAction();
+            Debug.Log($"[{_machineNew.gameObject.name}] Exiting RecoverState.");
+            CompleteRecoveryAndTransition(); // Safe, only runs once
         }
+
 
         /// <summary>
         /// Called when the recovery sequence is considered finished (by animation event or safety timeout).
@@ -225,5 +202,32 @@ namespace AI.FSM.Warrior.States
                 _machineNew.SwitchState(_machineNew.FindState<IdleState>()); // Fallback
             }
         }
+        
+        private void CompleteRecoveryAndTransition()
+        {
+            // Always ensure recovery animation is marked finished
+            _npcController?.FinishRecoveryAction();
+            
+            if (_hasCompletedRecovery) return;
+            _hasCompletedRecovery = true;
+            _isRecovering = false;
+
+            Debug.Log($"[{_machineNew.gameObject.name}] Completing recovery and transitioning.");
+
+            // Cancel safety timeout
+            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+            {
+                _safetyTimeoutTokenSource.Cancel();
+                Debug.Log($"[{_machineNew.gameObject.name}] Cancelled safety timeout.");
+            }
+            _safetyTimeoutTokenSource?.Dispose();
+            _safetyTimeoutTokenSource = null;
+            
+
+            // Transition to Circling or fallback Idle
+            var nextState = _machineNew.FindState<W_CirclingState>();
+            _machineNew.SwitchState(nextState);
+        }
+
     }
 }

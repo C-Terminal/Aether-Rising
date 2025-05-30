@@ -1,43 +1,47 @@
-﻿using AI.FSM.NPC;
+﻿using System;
+using System.Threading;
+using AI.FSM.NPC;
 using AI.FSM.NPC.States;
+using AI.NPC.Sensing;
 using Animation.AnimControllers;
 using Core.Events;
 using Core.Events.Combat;
-using System.Collections;
-using Characters.NPC;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AI;
-using Cysharp.Threading.Tasks;
-using System.Threading;
-using System;
+
+// Add this for perception system
 
 namespace AI.FSM.Warrior.States
 {
     public class W_PrepareAttackState : MonoBehaviour, IState
     {
+        // Remove timer-based telegraph - now purely animation driven
+        private bool _isTelegraphing;
+
+
+        // Perception system reference
+        private NPCPerceptionCoordinator _perceptionCoordinator;
+        private float _safetyTimeoutDuration = 1f; // Safety fallback timeout
+
+        // Cancellation token for safety timeout (optional fallback)
+        private CancellationTokenSource _safetyTimeoutTokenSource;
         private StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private Vector3 attackPosition; // Position to move to before telegraphing
         private CharacterAnimator charAnim; // Assuming this is used
-        
-        // Remove timer-based telegraph - now purely animation driven
-        private bool _isTelegraphing = false;
-        
-        // Cancellation token for safety timeout (optional fallback)
-        private CancellationTokenSource _safetyTimeoutTokenSource;
-        private float _safetyTimeoutDuration = 5f; // Safety fallback timeout
 
-        void OnEnable()
+        private void OnEnable()
         {
             // Subscribe to telegraph complete event
             EventManager.AddListener<AttackTelegraphCompleteEventData>(OnTelegraphComplete);
         }
 
-        void OnDisable()
+        private void OnDisable()
         {
             // Unsubscribe from telegraph complete event
             EventManager.RemoveListener<AttackTelegraphCompleteEventData>(OnTelegraphComplete);
-            
+
             // Clean up safety timeout
             if (_safetyTimeoutTokenSource != null)
             {
@@ -50,9 +54,9 @@ namespace AI.FSM.Warrior.States
         public void OnStateEnter()
         {
             Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering PrepareAttackState - Animation Driven Mode.");
-            
+
             _isTelegraphing = true;
-            
+
             //TODO: Decide attack position
             // Potentially move to an optimal attack spot if not already there
             // attackPosition = CalculateOptimalAttackPosition();
@@ -62,7 +66,7 @@ namespace AI.FSM.Warrior.States
 
             agent.isStopped = true; // Stop to telegraph
             _stateMachineNew.RotateToFacePlayer();
-            
+
             var npcController = _stateMachineNew.NpcController;
             if (npcController != null)
             {
@@ -70,8 +74,8 @@ namespace AI.FSM.Warrior.States
                 npcController.StartTelegraphAction();
 
                 var arsenalItem = npcController.GetCurrentArsenalItem();
-                float telegraphDuration = 0.3f; // Default fallback
-                
+                var telegraphDuration = 0.3f; // Default fallback
+
                 if (arsenalItem.HasValue && arsenalItem.Value.telegraphDuration > 0)
                 {
                     telegraphDuration = arsenalItem.Value.telegraphDuration;
@@ -79,12 +83,14 @@ namespace AI.FSM.Warrior.States
                 }
                 else
                 {
-                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Using default telegraph duration: {telegraphDuration}");
+                    Debug.Log(
+                        $"[{_stateMachineNew.gameObject.name}] Using default telegraph duration: {telegraphDuration}");
                 }
 
                 // Update safety timeout duration based on telegraph duration
-                _safetyTimeoutDuration = telegraphDuration + 2f; // Add buffer time
-
+                _safetyTimeoutDuration = telegraphDuration + 0.3f; // Add buffer time
+                // Get current target from perception system instead of direct Player reference
+                var currentTarget = GetCurrentTarget();
                 // Raise event for additional telegraph effects
                 // Trigger the telegraph event for VFX Manager to handle
                 EventManager.TriggerEvent(new AttackTelegraphEventData
@@ -96,92 +102,9 @@ namespace AI.FSM.Warrior.States
                     EffectIntensity = 1.0f
                 });
             }
-            
+
             // Start safety timeout as a fallback in case animation event never fires
             StartSafetyTimeout();
-        }
-
-        /// <summary>
-        /// Safety timeout to prevent getting stuck if animation event doesn't fire
-        /// </summary>
-        private void StartSafetyTimeout()
-        {
-            if (_safetyTimeoutTokenSource != null)
-            {
-                _safetyTimeoutTokenSource.Cancel();
-                _safetyTimeoutTokenSource.Dispose();
-            }
-            
-            _safetyTimeoutTokenSource = new CancellationTokenSource();
-            SafetyTimeoutTask(_safetyTimeoutTokenSource.Token).Forget();
-        }
-
-        private async UniTaskVoid SafetyTimeoutTask(CancellationToken cancellationToken)
-        {
-            try
-            {
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout started ({_safetyTimeoutDuration}s)");
-                
-                await UniTask.Delay(TimeSpan.FromSeconds(_safetyTimeoutDuration), cancellationToken: cancellationToken);
-                
-                // If we reach here, the animation event didn't fire within the timeout
-                if (_isTelegraphing)
-                {
-                    Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] Telegraph animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
-                    TransitionToStrikeState();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout cancelled (completed normally).");
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout error: {ex.Message}");
-                // Force completion on error
-                if (_isTelegraphing && _stateMachineNew != null)
-                {
-                    TransitionToStrikeState();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Called by EventManager when AttackTelegraphCompleteEventData is fired
-        /// This should be triggered by an animation event
-        /// </summary>
-        private void OnTelegraphComplete(AttackTelegraphCompleteEventData eventData)
-        {
-            // Only respond to events from this NPC
-            if (eventData.AttackerTransform.gameObject != _stateMachineNew.gameObject)
-            {
-                return;
-            }
-            
-            if (!_isTelegraphing)
-            {
-                //TODO: maybe transition to a different state, OR change the conditions for exiting Locomotion cuz this is weird
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Received telegraph complete event but not currently telegraphing. Ignoring.");
-                return;
-            }
-            
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph complete event received from animation.");
-            
-            // Cancel the safety timeout since we received the proper event
-            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
-            {
-                _safetyTimeoutTokenSource.Cancel();
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Safety timeout cancelled by animation event.");
-            }
-            
-            var npcController = _stateMachineNew.NpcController;
-            if (npcController != null)
-            {
-                npcController.EndTelegraphAction();
-            }
-            
-            // Proceed with FSM transition logic
-            TransitionToStrikeState();
         }
 
         public void OnStateUpdate(float deltaTime)
@@ -190,9 +113,12 @@ namespace AI.FSM.Warrior.States
 
             _stateMachineNew.RotateToFacePlayer();
 
-            if (_stateMachineNew.Player != null &&
-                Vector3.Distance(transform.position, _stateMachineNew.Player.position) > _stateMachineNew.GetMaxEngagementDistance())
+            if (!IsTargetInRange() || !CanSeeTarget())
             {
+                var reason = !IsTargetInRange() ? "TargetOutOfRange" : "TargetNotVisible";
+                Debug.Log(
+                    $"[{_stateMachineNew.gameObject.name}] Target lost during telegraph ({reason}). Aborting to Chase.");
+
                 AbortTelegraphAndTransitionTo<ChaseState>();
             }
         }
@@ -201,9 +127,9 @@ namespace AI.FSM.Warrior.States
         public void OnStateExit()
         {
             Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
-            
+
             _isTelegraphing = false;
-            
+
             // Cancel the safety timeout if it's running
             if (_safetyTimeoutTokenSource != null)
             {
@@ -212,26 +138,137 @@ namespace AI.FSM.Warrior.States
                     _safetyTimeoutTokenSource.Cancel();
                     Debug.Log($"[{_stateMachineNew.gameObject.name}] Cancelled safety timeout on state exit.");
                 }
+
                 _safetyTimeoutTokenSource.Dispose();
                 _safetyTimeoutTokenSource = null;
             }
-            
+
             charAnim.SetTelegraphing(false); // Or reset bool
+        }
+
+        /// <summary>
+        ///     Get the current target from the perception system
+        /// </summary>
+        private Transform GetCurrentTarget()
+        {
+            if (_perceptionCoordinator != null)
+                // Assuming you add a method to get current target from perception coordinator
+                return _perceptionCoordinator.GetCurrentTarget();
+
+            // Fallback to state machine's player reference if perception system not available
+            return _stateMachineNew.Player;
+        }
+
+        /// <summary>
+        ///     Check if target is within engagement range using perception system
+        /// </summary>
+        private bool IsTargetInRange()
+        {
+            var target = GetCurrentTarget();
+            if (target == null) return false;
+
+            var distance = Vector3.Distance(transform.position, target.position);
+            return distance <= _stateMachineNew.GetMaxEngagementDistance();
+        }
+
+        /// <summary>
+        ///     Check if we can still see the target
+        /// </summary>
+        private bool CanSeeTarget()
+        {
+            if (_perceptionCoordinator != null) return _perceptionCoordinator.IsPlayerCurrentlyVisible();
+
+            // Fallback to state machine's visibility check
+            return _stateMachineNew.IsPlayerVisible();
+        }
+
+
+        /// <summary>
+        ///     Safety timeout to prevent getting stuck if animation event doesn't fire
+        /// </summary>
+        private void StartSafetyTimeout()
+        {
+            if (_safetyTimeoutTokenSource != null)
+            {
+                _safetyTimeoutTokenSource.Cancel();
+                _safetyTimeoutTokenSource.Dispose();
+            }
+
+            _safetyTimeoutTokenSource = new CancellationTokenSource();
+            SafetyTimeoutTask(_safetyTimeoutTokenSource.Token).Forget();
+        }
+
+        private async UniTaskVoid SafetyTimeoutTask(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Debug.Log(
+                    $"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout started ({_safetyTimeoutDuration}s)");
+
+                await UniTask.Delay(TimeSpan.FromSeconds(_safetyTimeoutDuration), cancellationToken: cancellationToken);
+
+                // If we reach here, the animation event didn't fire within the timeout
+                if (_isTelegraphing)
+                {
+                    Debug.LogWarning(
+                        $"[{_stateMachineNew.gameObject.name}] Telegraph animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
+                    TransitionToStrikeState();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.Log(
+                    $"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout cancelled (completed normally).");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout error: {ex.Message}");
+                // Force completion on error
+                if (_isTelegraphing && _stateMachineNew != null) TransitionToStrikeState();
+            }
+        }
+
+        /// <summary>
+        ///     Called by EventManager when AttackTelegraphCompleteEventData is fired
+        ///     This should be triggered by an animation event
+        /// </summary>
+        private void OnTelegraphComplete(AttackTelegraphCompleteEventData eventData)
+        {
+            // Only respond to events from this NPC
+            if (eventData.AttackerTransform.gameObject != _stateMachineNew.gameObject) return;
+
+            if (!_isTelegraphing)
+            {
+                //TODO: maybe transition to a different state, OR change the conditions for exiting Locomotion cuz this is weird
+                Debug.Log(
+                    $"[{_stateMachineNew.gameObject.name}] Received telegraph complete event but not currently telegraphing. Ignoring.");
+                return;
+            }
+
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph complete event received from animation.");
+
+            // Cancel the safety timeout since we received the proper event
+            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+            {
+                _safetyTimeoutTokenSource.Cancel();
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] Safety timeout cancelled by animation event.");
+            }
+
+            var npcController = _stateMachineNew.NpcController;
+            if (npcController != null) npcController.EndTelegraphAction();
+
+            // Proceed with FSM transition logic
+            TransitionToStrikeState();
         }
 
         private void TransitionToStrikeState()
         {
             if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
-            {
                 _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
-            }
             else
-            {
                 AbortTelegraphAndTransitionTo<W_CirclingState>();
-            }
-
         }
-        
+
         private void AbortTelegraphAndTransitionTo<T>() where T : class, IState
         {
             if (!_isTelegraphing) return;
@@ -242,16 +279,11 @@ namespace AI.FSM.Warrior.States
 
             // Cancel safety timeout
             if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
-            {
                 _safetyTimeoutTokenSource.Cancel();
-            }
 
             // End telegraph
             var npcController = _stateMachineNew.NpcController;
-            if (npcController != null)
-            {
-                npcController.EndTelegraphAction();
-            }
+            if (npcController != null) npcController.EndTelegraphAction();
 
             // Trigger abort event (optional based on situation)
             EventManager.TriggerEvent(new AttackTelegraphAbortEventData
@@ -269,6 +301,12 @@ namespace AI.FSM.Warrior.States
             _stateMachineNew = stateMachine;
             agent = _stateMachineNew.Agent;
             charAnim = _stateMachineNew.CharAnim;
+
+            // Get perception coordinator reference
+            _perceptionCoordinator = _stateMachineNew.GetComponentInChildren<NPCPerceptionCoordinator>();
+            if (_perceptionCoordinator == null)
+                Debug.LogWarning(
+                    $"[{_stateMachineNew.gameObject.name}] NPCPerceptionCoordinator not found. Using fallback methods.");
         }
     }
 }

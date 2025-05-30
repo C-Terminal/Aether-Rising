@@ -39,10 +39,11 @@ namespace AI.NPC.Sensing
         {
             _player = player;
             targetingSensor.SetTarget(player);
-            
- 
-            visionSensor.VisibilityEvaluator = () => targetingSensor.CurrentTarget != null && targetingSensor.HasLineOfSight();
-            
+
+
+            visionSensor.VisibilityEvaluator =
+                () => targetingSensor.CurrentTarget != null && targetingSensor.HasLineOfSight();
+
             _fsm?.NotifyPlayerInDetectionZone(true, player);
             visionSensor.StartChecking();
         }
@@ -55,11 +56,11 @@ namespace AI.NPC.Sensing
             visionSensor.StopChecking();
         }
 
+
         private void HandleVisibilityChanged(bool visible)
         {
-
             _playerCurrentlyVisible = visible;
-            
+
             if (visible)
             {
                 NPCManager.Instance.RegisterInRangeNpc(_fsm as WarriorStateMachine);
@@ -71,8 +72,16 @@ namespace AI.NPC.Sensing
                 NPCManager.Instance.UnregisterOutOfRangeNpc(_fsm as WarriorStateMachine);
                 _fsm?.NotifyPlayerLostSight();
             }
-                
         }
-        public bool IsPlayerCurrentlyVisible() => _playerCurrentlyVisible;
+
+        public Transform GetCurrentTarget()
+        {
+            return _player;
+        }
+
+        public bool IsPlayerCurrentlyVisible()
+        {
+            return _playerCurrentlyVisible;
+        }
     }
 }
