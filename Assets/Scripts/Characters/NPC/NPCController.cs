@@ -200,6 +200,7 @@ namespace Characters.NPC
             if (characterAnimator == null) return;
             Debug.Log($"[{gameObject.name}] NPCController: Action - ExecuteStrike.");
             // Uses the "Attack" bool parameter, consistent with the CharacterAnimator's SetAttacking method
+            // characterAnimator.SetTelegraphing(false); // Set the "Attack" bool parameter
             characterAnimator.SetAttacking(true);
             // Alternatively, if your strike is a one-shot trigger:
             // characterAnimator.TriggerAttack();
@@ -214,6 +215,7 @@ namespace Characters.NPC
             if (characterAnimator == null) return;
             Debug.Log($"[{gameObject.name}] NPCController: Action - FinishStrike.");
             characterAnimator.SetAttacking(false); // Reset the "Attack" bool
+            characterAnimator.SetRecovery(true);
             // Hitbox should have been disabled by an Animation Event already.
         }
 

@@ -70,7 +70,7 @@ namespace AI.FSM.Warrior.States
                 npcController.StartTelegraphAction();
 
                 var arsenalItem = npcController.GetCurrentArsenalItem();
-                float telegraphDuration = 1.0f; // Default fallback
+                float telegraphDuration = 0.3f; // Default fallback
                 
                 if (arsenalItem.HasValue && arsenalItem.Value.telegraphDuration > 0)
                 {
@@ -96,8 +96,6 @@ namespace AI.FSM.Warrior.States
                     EffectIntensity = 1.0f
                 });
             }
-
-            // charAnim.SetAiming(true); // Example of a "tell"
             
             // Start safety timeout as a fallback in case animation event never fires
             StartSafetyTimeout();
@@ -189,41 +187,16 @@ namespace AI.FSM.Warrior.States
         public void OnStateUpdate(float deltaTime)
         {
             if (!_isTelegraphing) return;
-            
+
             _stateMachineNew.RotateToFacePlayer();
-            
-            // The state now waits purely for animation events
-            // Only check for player distance and other conditions that might interrupt the telegraph
-            if (_stateMachineNew.Player != null && 
+
+            if (_stateMachineNew.Player != null &&
                 Vector3.Distance(transform.position, _stateMachineNew.Player.position) > _stateMachineNew.GetMaxEngagementDistance())
             {
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Player moved too far during telegraph. Aborting to Chase.");
-        
-                // End telegraph effects
-                var npcController = _stateMachineNew.NpcController;
-                if (npcController != null)
-                {
-                    npcController.EndTelegraphAction();
-                }
-        
-                // Trigger event for aborting telegraph
-                EventManager.TriggerEvent(new AttackTelegraphAbortEventData
-                {
-                    AttackerTransform = transform,
-                    Reason = "TargetOutOfRange"
-                });
-                
-                // Cancel safety timeout and mark as not telegraphing
-                _isTelegraphing = false;
-                if (_safetyTimeoutTokenSource != null)
-                {
-                    _safetyTimeoutTokenSource.Cancel();
-                }
-        
-                // Switch to chase state
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<ChaseState>());
+                AbortTelegraphAndTransitionTo<ChaseState>();
             }
         }
+
 
         public void OnStateExit()
         {
@@ -244,28 +217,52 @@ namespace AI.FSM.Warrior.States
             }
             
             charAnim.SetTelegraphing(false); // Or reset bool
-            charAnim.SetAiming(false); // Clean up tell
         }
 
         private void TransitionToStrikeState()
         {
-            if (!_isTelegraphing) return; // Prevent multiple transitions
-            
-            _isTelegraphing = false;
-            
-            // Check if still allowed to attack by NPCManager
             if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
             {
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Transitioning from PrepareAttackState to StrikeState.");
                 _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
             }
             else
             {
-                // Lost attack slot during telegraph
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Lost attack slot during PrepareAttack. Returning to Circle.");
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_CirclingState>());
+                AbortTelegraphAndTransitionTo<W_CirclingState>();
             }
+
         }
+        
+        private void AbortTelegraphAndTransitionTo<T>() where T : class, IState
+        {
+            if (!_isTelegraphing) return;
+
+            Debug.Log($"[{_stateMachineNew.gameObject.name}] Aborting telegraph and transitioning to {typeof(T).Name}");
+
+            _isTelegraphing = false;
+
+            // Cancel safety timeout
+            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+            {
+                _safetyTimeoutTokenSource.Cancel();
+            }
+
+            // End telegraph
+            var npcController = _stateMachineNew.NpcController;
+            if (npcController != null)
+            {
+                npcController.EndTelegraphAction();
+            }
+
+            // Trigger abort event (optional based on situation)
+            EventManager.TriggerEvent(new AttackTelegraphAbortEventData
+            {
+                AttackerTransform = transform,
+                Reason = $"TransitionTo{typeof(T).Name}"
+            });
+
+            _stateMachineNew.SwitchState(_stateMachineNew.FindState<T>());
+        }
+
 
         public void InitReferences(StateMachineNew stateMachine)
         {

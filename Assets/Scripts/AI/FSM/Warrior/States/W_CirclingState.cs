@@ -134,7 +134,8 @@ namespace AI.FSM.Warrior.States
 
             // Set initial animations
             charAnim.SetMovementSpeed(circlingSpeed);
-            charAnim.SetAiming(true);
+            //TODO: consider making aiming into a single frame and use
+            // charAnim.SetAiming(true);
         }
 
         private void DetermineInitialStrafeDirection()
@@ -232,7 +233,7 @@ namespace AI.FSM.Warrior.States
             if (distanceToPlayer > maxEngagementDistance)
             {
                 Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: Player too far ({distanceToPlayer:F1}m). Switching to ChaseState.");
-                charAnim.SetAiming(false);
+                // charAnim.SetAiming(false);
                 _stateMachineNew.SwitchState(_stateMachineNew.FindState<ChaseState>());
                 return true;
             }
@@ -284,7 +285,7 @@ namespace AI.FSM.Warrior.States
         {
             float currentSpeed = agent.velocity.magnitude;
             charAnim.SetMovementSpeed(currentSpeed > 0.1f ? currentSpeed : 0f);
-            charAnim.SetAiming(_wasPlayerVisibleLastFrame);
+            // charAnim.SetAiming(_wasPlayerVisibleLastFrame);
         }
 
         private void CalculateAndSetNewStrafeDestination()

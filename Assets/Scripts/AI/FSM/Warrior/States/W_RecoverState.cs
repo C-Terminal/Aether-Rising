@@ -157,7 +157,7 @@ namespace AI.FSM.Warrior.States
         {
             // Verify this event is for our character (if eventData contains character reference)
             // if (eventData.character != _npcController) return;
-            
+            //TODO: verify why this never syncs up 
             if (!_isRecovering)
             {
                 Debug.Log($"[{_machineNew.gameObject.name}] Received recovery complete event but not currently recovering. Ignoring.");
