@@ -1,27 +1,45 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using AI.FSM.NPC.States;
 using AI.FSM.Warrior.States;
 using UnityEngine;
 
-// Singleton class attached to a dedicated GameObject (e.g., "NPCManager")
 namespace AI.FSM.NPC
 {
+    /// <summary>
+    /// Centralized manager for NPC coordination, attack timing, and group behaviors.
+    /// Integrates with the new perception system for improved NPC management.
+    /// </summary>
     public class NPCManager : MonoBehaviour
     {
-        // Configuration
+        [Header("Attack Coordination")]
         [Tooltip("Range within which NPCs will be alerted by others")]
         [SerializeField] private float alertRange = 15f;
+        
         [Tooltip("Time range (min, max) in seconds before a new NPC attacks Player")]
         [SerializeField] private Vector2 attackTimeRange = new Vector2(2.0f, 4.0f);
+        
+        [Tooltip("Maximum number of NPCs that can attack simultaneously")]
+        [SerializeField] private int maxSimultaneousAttackers = 1;
 
-        // Lists to track NPCs
-        // NPCs actively engaging the player (within detection trigger + visible)
-        public List<StateMachineNew> npcsInRange = new();
-        public List<StateMachineNew> NpcsInRange { get { return npcsInRange; } }
-        // All NPCs currently present in the level
-        public List<StateMachineNew> npcsInLevel = new();
+        [Header("Debug")]
+        [SerializeField] private bool enableDebugLogs = true;
 
-        // Singleton instance
+        // Event system for decoupled communication
+        public static event System.Action<WarriorStateMachine> OnNPCRegistered;
+        public static event System.Action<WarriorStateMachine> OnNPCUnregistered;
+        public static event System.Action<WarriorStateMachine> OnAttackerSelected;
+        public static event System.Action<WarriorStateMachine> OnAttackerCleared;
+
+        // NPC tracking with better encapsulation
+        private readonly HashSet<WarriorStateMachine> _npcsInRange = new HashSet<WarriorStateMachine>();
+        private readonly List<WarriorStateMachine> _npcsInLevel = new List<WarriorStateMachine>();
+        
+        // Attack coordination with support for multiple attackers
+        private readonly HashSet<WarriorStateMachine> _currentAttackers = new HashSet<WarriorStateMachine>();
+        private float _attackTimer;
+
+        // Singleton with lazy initialization
         private static NPCManager _instance;
         public static NPCManager Instance
         {
@@ -29,11 +47,10 @@ namespace AI.FSM.NPC
             {
                 if (_instance == null)
                 {
-                    // Find existing instance or create a new one if not found
                     _instance = FindObjectOfType<NPCManager>();
                     if (_instance == null)
                     {
-                        GameObject go = new GameObject("NPCManager");
+                        var go = new GameObject("[NPCManager]");
                         _instance = go.AddComponent<NPCManager>();
                     }
                 }
@@ -41,256 +58,409 @@ namespace AI.FSM.NPC
             }
         }
 
-        // Attack Coordination
-        private StateMachineNew currentAttackingNPC; // The NPC currently performing an attack action
-        private float attackTimer; // Countdown timer for the next attack slot
+        // Public read-only properties
+        public IReadOnlyCollection<WarriorStateMachine> NPCsInRange => _npcsInRange;
+        public IReadOnlyCollection<WarriorStateMachine> NPCsInLevel => _npcsInLevel;
+        public IReadOnlyCollection<WarriorStateMachine> CurrentAttackers => _currentAttackers;
+        public int ActiveNPCCount => _npcsInRange.Count;
+        public bool HasAvailableAttackSlots => _currentAttackers.Count < maxSimultaneousAttackers;
 
-        void Awake()
+        #region Unity Lifecycle
+
+        private void Awake()
         {
-            // Enforce Singleton pattern
-            if (_instance == null)
-            {
-                _instance = this;
-                // DontDestroyOnLoad(gameObject); // Optional: if manager needs to persist across scenes
-            }
-            else if (_instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            // Initialize attack timer with a random value within the range
+            InitializeSingleton();
             ResetAttackTimer();
         }
 
         private void Start()
         {
-            // Find all NPCs in the scene at the start
-            PopulateNpcsInLevel();
+            PopulateNPCsInLevel();
         }
 
         private void OnEnable()
         {
-            // Subscribe to the static event from WarriorStateMachine
             WarriorStateMachine.OnPlayerSpotted += HandlePlayerSpotted;
         }
 
         private void OnDisable()
         {
-            // Unsubscribe to prevent memory leaks
             WarriorStateMachine.OnPlayerSpotted -= HandlePlayerSpotted;
         }
 
         private void Update()
         {
-            // Only manage attacks if there are NPCs actively engaging the player
-            if (npcsInRange.Count > 0)
-            {
-                // Check if the attack slot is currently free
-                if (!IsAnyNPCAttacking())
-                {
-                    // Countdown the timer
-                    attackTimer -= Time.deltaTime;
-
-                    // If the timer expires, select a new NPC to attack
-                    if (attackTimer <= 0)
-                    {
-                        SelectNextAttacker();
-                        ResetAttackTimer(); // Reset timer for the next attack slot
-                    }
-                }
-            }
-            else
-            {
-                // If no NPCs are in range, ensure no attacker is set and reset timer
-                if (currentAttackingNPC != null) ClearAttackingNPC(currentAttackingNPC);
-                ResetAttackTimer();
-            }
-        }
-        public void RegisterInRangeNpc(WarriorStateMachine npc)
-        {
-            if (npc != null && !npcsInRange.Contains(npc))
-            {
-                npcsInRange.Add(npc);
-                npc.HasSpottedPlayer = true; // Mark the NPC as aware
-                Debug.Log($"[NPCManager] Registered {npc.name}. InRange count: {npcsInRange.Count}");
-            }
+            UpdateAttackCoordination();
         }
 
-        // Called by PlayerDetector when the player leaves an NPC's trigger
-        public void UnregisterOutOfRangeNpc(WarriorStateMachine npc)
-        {
-            if (npc != null && npcsInRange.Contains(npc))
-            {
-                npcsInRange.Remove(npc);
-                npc.HasSpottedPlayer = false; // Mark the NPC as unaware
-                // If the departing NPC was the current attacker, clear the slot
-                if (currentAttackingNPC == npc)
-                {
-                    ClearAttackingNPC(npc);
-                    ResetAttackTimer(); // Allow a new attacker sooner
-                }
-                Debug.Log($"[NPCManager] Unregistered {npc.name}. InRange count: {npcsInRange.Count}");
-            }
-        }
+        #endregion
 
-        // Check if an NPC is currently occupying the attack slot
-        public bool IsAnyNPCAttacking()
-        {
-            // Also check if the current attacker is still valid (e.g., not dead, still in range)
-            if (currentAttackingNPC != null && currentAttackingNPC.enabled && npcsInRange.Contains(currentAttackingNPC) && !currentAttackingNPC.IsSelfDead)
-            {
-                return true;
-            }
-            else if (currentAttackingNPC != null)
-            {
-                // If the attacker became invalid, clear it
-                ClearAttackingNPC(currentAttackingNPC);
-                return false;
-            }
-            return false;
-        }
+        #region NPC Registration (Called by Perception System)
 
-        // Allows an AttackState to claim the attack slot
-        public void SetAttackingNPC(StateMachineNew npc)
+        /// <summary>
+        /// Registers an NPC as actively engaging the player.
+        /// Called by NPCPerceptionCoordinator when player becomes visible.
+        /// </summary>
+        public void RegisterEngagedNPC(WarriorStateMachine npc)
         {
-            // Only allow setting if the slot is free OR if the requesting NPC is the designated one
-            if (currentAttackingNPC == null || currentAttackingNPC == npc)
+            if (!IsValidNPC(npc))
             {
-                currentAttackingNPC = npc;
-                Debug.Log($"[NPCManager] {npc.name} is now the attacking NPC.");
+                LogWarning($"Attempted to register invalid NPC: {GetNPCName(npc)}");
+                return;
             }
-            else
-            {
-                Debug.LogWarning($"[NPCManager] Tried to set {npc.name} as attacker, but {currentAttackingNPC.name} already holds the slot.");
-            }
-        }
 
-        // Allows retrieval of the currently designated attacker (e.g., by CirclingState)
-        public FSM.StateMachineNew GetAttackingNPC()
-        {
-            return currentAttackingNPC;
-        }
-
-        // Called by AttackState/RetreatState when the attack sequence finishes or is interrupted
-        public void ClearAttackingNPC(FSM.StateMachineNew npc)
-        {
-            if (currentAttackingNPC == npc)
+            if (_npcsInRange.Add(npc))
             {
-                Debug.Log($"[NPCManager] Clearing attacking NPC: {npc.name}.");
-                currentAttackingNPC = null;
-                // Optionally reset timer here too, or let it run down naturally
-                ResetAttackTimer();
+                npc.HasSpottedPlayer = true;
+                Log($"Registered {npc.name} as engaged. Total engaged: {_npcsInRange.Count}");
+                OnNPCRegistered?.Invoke(npc);
             }
         }
 
         /// <summary>
-        /// Requests permission for an NPC to attack the player.
-        /// Returns true if permission is granted, false otherwise.
+        /// Unregisters an NPC from active engagement.
+        /// Called by NPCPerceptionCoordinator when player is no longer visible.
         /// </summary>
-        /// <param name="npc">The NPC requesting permission to attack</param>
-        /// <returns>True if the NPC can attack, false otherwise</returns>
-        public bool RequestAttackPermission(StateMachineNew npc)
+        public void UnregisterEngagedNPC(WarriorStateMachine npc)
         {
-            // Check if the NPC is valid and in range
-            if (npc == null || !npcsInRange.Contains(npc) || npc.IsSelfDead)
-            {
-                Debug.LogWarning($"[NPCManager] Invalid attack request from {(npc != null ? npc.name : "null")}");
-                return false;
-            }
+            if (npc == null) return;
 
-            // If no NPC is attacking, or this NPC is already the attacker
-            if (!IsAnyNPCAttacking() || currentAttackingNPC == npc)
+            if (_npcsInRange.Remove(npc))
             {
-                SetAttackingNPC(npc);
+                npc.HasSpottedPlayer = false;
+                
+                // Clear from attackers if currently attacking
+                if (_currentAttackers.Remove(npc))
+                {
+                    Log($"Cleared {npc.name} from attackers due to disengagement");
+                    OnAttackerCleared?.Invoke(npc);
+                    ResetAttackTimer(0.5f); // Allow new attacker sooner
+                }
+
+                Log($"Unregistered {npc.name} from engagement. Total engaged: {_npcsInRange.Count}");
+                OnNPCUnregistered?.Invoke(npc);
+            }
+        }
+
+        #endregion
+
+        #region Attack Coordination
+
+        /// <summary>
+        /// Requests permission for an NPC to attack.
+        /// More flexible approach supporting multiple attack patterns.
+        /// </summary>
+        public bool RequestAttackPermission(WarriorStateMachine npc)
+        {
+            if (!IsValidAttackRequest(npc))
+                return false;
+
+            // If already attacking, maintain permission
+            if (_currentAttackers.Contains(npc))
                 return true;
-            }
-            // If this NPC is not the current attacker but wants to attack
-            else
+
+            // Check if attack slots are available
+            if (!HasAvailableAttackSlots)
             {
-                Debug.Log($"[NPCManager] {npc.name} requested attack permission but {currentAttackingNPC.name} is already attacking.");
+                Log($"{npc.name} denied attack permission - no slots available");
                 return false;
             }
+
+            // Grant permission and add to attackers
+            _currentAttackers.Add(npc);
+            Log($"{npc.name} granted attack permission. Active attackers: {_currentAttackers.Count}");
+            OnAttackerSelected?.Invoke(npc);
+            return true;
         }
 
-        // --- Internal Logic ---
-
-        // Selects a random NPC from the 'inRange' list to be the next attacker
-        private void SelectNextAttacker()
+        /// <summary>
+        /// Clears an NPC from the attacking slot.
+        /// Called when attack completes or is interrupted.
+        /// </summary>
+        public void ReleaseAttackPermission(WarriorStateMachine npc)
         {
-            if (npcsInRange.Count > 0 && currentAttackingNPC == null)
+            if (npc != null && _currentAttackers.Remove(npc))
             {
-                // Filter out NPCs that might be in non-eligible states (e.g., Hit, Cover, Death)
-                var eligibleNPCs = npcsInRange.FindAll(npc =>
-                        npc != null &&
-                        npc.enabled &&
-                        !npc.IsSelfDead &&
-                        (npc.CurrentState is W_CirclingState || npc.CurrentState is ChaseState) // Example: Only allow circling/chasing NPCs to be selected
-                );
-                if (eligibleNPCs.Count > 0)
+                Log($"Released attack permission for {npc.name}. Active attackers: {_currentAttackers.Count}");
+                OnAttackerCleared?.Invoke(npc);
+                
+                // Reset timer to allow new attackers
+                if (_npcsInRange.Count > _currentAttackers.Count)
                 {
-                    currentAttackingNPC = eligibleNPCs[Random.Range(0, eligibleNPCs.Count)];
-                    Debug.Log($"[NPCManager] {currentAttackingNPC.name} selected to attack next.");
-                    // The selected NPC's CirclingState will check GetAttackingNPC() and transition to Attack
-                }
-                else
-                {
-                    Debug.Log("[NPCManager] No eligible NPCs available to attack.");
-                    // Reset timer to try again soon
-                    ResetAttackTimer(0.5f); // Shorter delay if no one eligible
+                    ResetAttackTimer(0.5f);
                 }
             }
         }
 
-        // Resets the attack timer to a new random value within the defined range
-        private void ResetAttackTimer(float specificTime = -1f)
+        /// <summary>
+        /// Checks if any NPCs are currently attacking.
+        /// </summary>
+        public bool IsAnyNPCAttacking()
         {
-            if (specificTime >= 0)
-            {
-                attackTimer = specificTime;
-            }
-            else
-            {
-                attackTimer = Random.Range(attackTimeRange.x, attackTimeRange.y);
-            }
-            // Debug.Log($"[NPCManager] Attack timer reset to {attackTimer:F2}s.");
+            // Clean up invalid attackers
+            _currentAttackers.RemoveWhere(npc => !IsValidNPC(npc) || !_npcsInRange.Contains(npc));
+            return _currentAttackers.Count > 0;
         }
 
-        // Handles the OnPlayerSpotted event from any WarriorStateMachine
+        /// <summary>
+        /// Gets the primary attacker (for legacy compatibility).
+        /// </summary>
+        public WarriorStateMachine GetPrimaryAttacker()
+        {
+            return _currentAttackers.FirstOrDefault();
+        }
+
+        #endregion
+
+        #region Alert System
+
+        /// <summary>
+        /// Handles player spotted alerts from the perception system.
+        /// Improved to work with the new perception coordinator.
+        /// </summary>
         private void HandlePlayerSpotted(Vector3 alertPosition)
         {
-            Debug.Log($"[NPCManager] Player spotted alert received near {alertPosition}. Checking nearby NPCs.");
-            foreach (WarriorStateMachine npc in npcsInLevel)
+            Log($"Player spotted alert at {alertPosition}. Alerting nearby NPCs.");
+            
+            var nearbyNPCs = GetNPCsInRange(alertPosition, alertRange)
+                .Where(npc => !npc.HasSpottedPlayer && !npc.IsDead)
+                .ToList();
+
+            foreach (var npc in nearbyNPCs)
             {
-                // Check if NPC is within alert range, not already aware, and is alive/enabled
-                if (npc != null && npc.enabled && !npc.HasSpottedPlayer && !npc.IsDead &&
-                    Vector3.Distance(npc.transform.position, alertPosition) <= alertRange)
+                Log($"Alerting {npc.name} to player presence");
+                npc.InitiateAttackOnPlayer();
+            }
+        }
+
+        /// <summary>
+        /// Gets NPCs within a specific range of a position.
+        /// </summary>
+        private IEnumerable<WarriorStateMachine> GetNPCsInRange(Vector3 position, float range)
+        {
+            return _npcsInLevel.Where(npc => 
+                npc != null && 
+                npc.enabled && 
+                Vector3.Distance(npc.transform.position, position) <= range);
+        }
+
+        #endregion
+
+        #region Internal Logic
+
+        private void InitializeSingleton()
+        {
+            if (_instance == null)
+            {
+                _instance = this;
+                // Uncomment if manager should persist across scenes
+                // DontDestroyOnLoad(gameObject);
+            }
+            else if (_instance != this)
+            {
+                Destroy(gameObject);
+            }
+        }
+
+        private void UpdateAttackCoordination()
+        {
+            if (_npcsInRange.Count == 0)
+            {
+                HandleNoEngagedNPCs();
+                return;
+            }
+
+            // Clean up invalid attackers
+            CleanupInvalidAttackers();
+
+            // Manage attack timing if slots are available
+            if (HasAvailableAttackSlots && !IsAttackTimerActive())
+            {
+                _attackTimer -= Time.deltaTime;
+                
+                if (_attackTimer <= 0)
                 {
-                    Debug.Log($"[NPCManager] Alerting {npc.name} to player's presence.");
-                    // Tell the nearby NPC to start its engagement process (which might involve visibility checks first)
-                    npc.InitiateAttackOnPlayer(); // This will typically switch the NPC to Chase state
-                    // Registering happens when the NPC confirms visibility via PlayerDetector
+                    SelectNextAttacker();
+                    ResetAttackTimer();
                 }
             }
         }
 
-        // Finds all GameObjects tagged "NPC" and adds their WarriorStateMachine component
-        private void PopulateNpcsInLevel()
+        private void HandleNoEngagedNPCs()
         {
-            npcsInLevel.Clear(); // Clear list before populating
-            GameObject[] npcObjects = GameObject.FindGameObjectsWithTag("NPC");
-            foreach (GameObject npcObj in npcObjects)
+            if (_currentAttackers.Count > 0)
             {
-                WarriorStateMachine warrior = npcObj.GetComponent<WarriorStateMachine>();
+                Log("No NPCs engaged - clearing all attackers");
+                _currentAttackers.Clear();
+            }
+            ResetAttackTimer();
+        }
+
+        private void CleanupInvalidAttackers()
+        {
+            var invalidAttackers = _currentAttackers
+                .Where(npc => !IsValidNPC(npc) || !_npcsInRange.Contains(npc))
+                .ToList();
+
+            foreach (var invalid in invalidAttackers)
+            {
+                _currentAttackers.Remove(invalid);
+                Log($"Removed invalid attacker: {GetNPCName(invalid)}");
+            }
+        }
+
+        private bool IsAttackTimerActive()
+        {
+            return _currentAttackers.Count >= maxSimultaneousAttackers;
+        }
+
+        private void SelectNextAttacker()
+        {
+            var eligibleNPCs = GetEligibleAttackers();
+            
+            if (eligibleNPCs.Count == 0)
+            {
+                Log("No eligible attackers available");
+                ResetAttackTimer(0.5f);
+                return;
+            }
+
+            var selectedNPC = eligibleNPCs[Random.Range(0, eligibleNPCs.Count)];
+            
+            // The NPC will request permission when ready to attack
+            Log($"Selected {selectedNPC.name} as potential attacker");
+        }
+
+        private List<WarriorStateMachine> GetEligibleAttackers()
+        {
+            return _npcsInRange
+                .Where(npc => IsEligibleForAttack(npc))
+                .ToList();
+        }
+
+        private bool IsEligibleForAttack(WarriorStateMachine npc)
+        {
+            return IsValidNPC(npc) && 
+                   !_currentAttackers.Contains(npc) &&
+                   IsInAttackableState(npc);
+        }
+
+        private bool IsInAttackableState(WarriorStateMachine npc)
+        {
+            // return npc.CurrentState is W_CirclingState || 
+            //        npc.CurrentState is ChaseState ||
+            //     npc.CurrentState is IdleState;
+
+            return true;
+        }
+
+        private void ResetAttackTimer(float specificTime = -1f)
+        {
+            _attackTimer = specificTime >= 0 ? specificTime : 
+                Random.Range(attackTimeRange.x, attackTimeRange.y);
+        }
+
+        private void PopulateNPCsInLevel()
+        {
+            _npcsInLevel.Clear();
+            
+            var npcObjects = GameObject.FindGameObjectsWithTag("NPC");
+            
+            foreach (var npcObj in npcObjects)
+            {
+                var warrior = npcObj.GetComponent<WarriorStateMachine>();
                 if (warrior != null)
                 {
-                    npcsInLevel.Add(warrior);
+                    _npcsInLevel.Add(warrior);
                 }
                 else
                 {
-                    Debug.LogWarning($"[NPCManager] GameObject {npcObj.name} tagged NPC but missing WarriorStateMachine.");
+                    LogWarning($"GameObject {npcObj.name} tagged NPC but missing WarriorStateMachine");
                 }
             }
-            Debug.Log($"[NPCManager] Found {npcsInLevel.Count} NPCs in the level.");
+            
+            Log($"Found {_npcsInLevel.Count} NPCs in level");
         }
+
+        #endregion
+
+        #region Validation & Utilities
+
+        private bool IsValidNPC(WarriorStateMachine npc)
+        {
+            return npc != null && npc.enabled && !npc.IsSelfDead;
+        }
+
+        private bool IsValidAttackRequest(WarriorStateMachine npc)
+        {
+            if (!IsValidNPC(npc))
+            {
+                LogWarning($"Invalid attack request from {GetNPCName(npc)}");
+                return false;
+            }
+
+            if (!_npcsInRange.Contains(npc))
+            {
+                LogWarning($"Attack request from non-engaged NPC: {npc.name}");
+                return false;
+            }
+
+            return true;
+        }
+
+        private string GetNPCName(WarriorStateMachine npc)
+        {
+            return npc != null ? npc.name : "null";
+        }
+
+        private void Log(string message)
+        {
+            if (enableDebugLogs)
+                Debug.Log($"[NPCManager] {message}");
+        }
+
+        private void LogWarning(string message)
+        {
+            if (enableDebugLogs)
+                Debug.LogWarning($"[NPCManager] {message}");
+        }
+
+        #endregion
+
+        #region Legacy Support (For Backward Compatibility)
+
+        [System.Obsolete("Use RegisterEngagedNPC instead")]
+        public void RegisterInRangeNpc(WarriorStateMachine npc)
+        {
+            RegisterEngagedNPC(npc);
+        }
+
+        [System.Obsolete("Use UnregisterEngagedNPC instead")]
+        public void UnregisterOutOfRangeNpc(WarriorStateMachine npc)
+        {
+            UnregisterEngagedNPC(npc);
+        }
+
+        [System.Obsolete("Use RequestAttackPermission instead")]
+        public void SetAttackingNPC(StateMachineNew npc)
+        {
+            if (npc is WarriorStateMachine warrior)
+                RequestAttackPermission(warrior);
+        }
+
+        [System.Obsolete("Use GetPrimaryAttacker instead")]
+        public FSM.StateMachineNew GetAttackingNPC()
+        {
+            return GetPrimaryAttacker();
+        }
+
+        [System.Obsolete("Use ReleaseAttackPermission instead")]
+        public void ClearAttackingNPC(FSM.StateMachineNew npc)
+        {
+            if (npc is WarriorStateMachine warrior)
+                ReleaseAttackPermission(warrior);
+        }
+
+        #endregion
     }
 }

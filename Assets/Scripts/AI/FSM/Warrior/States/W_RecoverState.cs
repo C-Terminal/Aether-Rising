@@ -225,8 +225,9 @@ namespace AI.FSM.Warrior.States
             
 
             // Transition to Circling or fallback Idle
-            var nextState = _machineNew.FindState<W_CirclingState>();
-            _machineNew.SwitchState(nextState);
+            // var nextState = _machineNew.FindState<W_CirclingState>();
+            // _machineNew.SwitchState(nextState);
+            _machineNew.SwitchState(_machineNew.FindState<IdleState>()); // Fallback
         }
 
     }

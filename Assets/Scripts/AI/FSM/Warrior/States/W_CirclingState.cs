@@ -147,7 +147,7 @@ namespace AI.FSM.Warrior.States
             // Consider nearby NPCs to avoid clustering
             if (NPCManager.Instance != null)
             {
-                var nearbyNPCs = NPCManager.Instance.npcsInRange;
+                var nearbyNPCs = NPCManager.Instance.NPCsInRange;
                 if (nearbyNPCs.Count > 1)
                 {
                     // Spread out from other NPCs
@@ -213,7 +213,7 @@ namespace AI.FSM.Warrior.States
                 float distanceToPlayer = Vector3.Distance(transform.position, player.position);
                 if (distanceToPlayer < desiredCirclingRadius * 0.7f) // Very close
                 {
-                    if (NPCManager.Instance.RequestAttackPermission(_stateMachineNew))
+                    if (NPCManager.Instance.RequestAttackPermission(_stateMachineNew as WarriorStateMachine))
                     {
                         Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: Player very close, attacking immediately!");
                         _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_PrepareAttackState>());
@@ -330,7 +330,7 @@ namespace AI.FSM.Warrior.States
             // Adjust based on nearby NPCs
             if (NPCManager.Instance != null)
             {
-                var nearbyNPCs = NPCManager.Instance.npcsInRange;
+                var nearbyNPCs = NPCManager.Instance.NPCsInRange;
                 if (nearbyNPCs.Count > 2) // Too crowded, increase radius
                 {
                     baseRadius = Mathf.Min(maxCirclingRadius, baseRadius + 1f);
