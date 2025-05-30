@@ -1,11 +1,14 @@
 ﻿using System;
 using UnityEngine;
+using UnityEngine.AI;
 
-namespace AI.Sensing.NPC
+namespace AI.NPC.Sensing
 {
     public class TargetingSensor : MonoBehaviour
     {
         [SerializeField] private float actionRange = 2f;
+        [SerializeField] private float visibleChaseAngle = 90f;
+        [SerializeField] private LayerMask obstacleLayerMask = -1;
         public Transform CurrentTarget { get; private set; }
 
         public event Action<bool> OnTargetRangeChanged;
@@ -28,6 +31,28 @@ namespace AI.Sensing.NPC
         {
             CurrentTarget = newTarget;
             _wasInRange = false; // Force re-evaluation
+        }
+        
+        public bool HasLineOfSight()
+        {
+            if (CurrentTarget == null) return false;
+
+            var directionToTarget = CurrentTarget.position - transform.position;
+            var angle = Vector3.Angle(transform.forward, directionToTarget.normalized);
+
+            if (angle < visibleChaseAngle / 2f)
+            {
+                var distanceToTarget = directionToTarget.magnitude;
+                var rayStart = transform.position + transform.up * GetComponent<NavMeshAgent>().height / 2f;
+        
+                if (Physics.Raycast(rayStart, directionToTarget.normalized, out RaycastHit hit,
+                        distanceToTarget, obstacleLayerMask))
+                {
+                    return hit.transform == CurrentTarget || hit.transform.IsChildOf(CurrentTarget);
+                }
+                return true;
+            }
+            return false;
         }
 
         private void UpdateRange(bool isInRange)

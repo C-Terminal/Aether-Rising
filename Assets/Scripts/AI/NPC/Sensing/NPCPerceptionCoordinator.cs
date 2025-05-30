@@ -1,5 +1,5 @@
 ﻿using AI.FSM;
-using AI.Sensing.NPC;
+using AI.FSM.NPC;
 using UnityEngine;
 
 namespace AI.NPC.Sensing
@@ -12,6 +12,7 @@ namespace AI.NPC.Sensing
 
         private IPerceptionAwareFSM _fsm;
         private Transform _player;
+        private bool _playerCurrentlyVisible = false;
 
         private void Awake()
         {
@@ -38,6 +39,10 @@ namespace AI.NPC.Sensing
         {
             _player = player;
             targetingSensor.SetTarget(player);
+            
+ 
+            visionSensor.VisibilityEvaluator = () => targetingSensor.CurrentTarget != null && targetingSensor.HasLineOfSight();
+            
             _fsm?.NotifyPlayerInDetectionZone(true, player);
             visionSensor.StartChecking();
         }
@@ -45,16 +50,29 @@ namespace AI.NPC.Sensing
         private void HandlePlayerExit()
         {
             targetingSensor.SetTarget(null);
+            visionSensor.VisibilityEvaluator = null; // Clear the evaluator
             _fsm?.NotifyPlayerInDetectionZone(false, null);
             visionSensor.StopChecking();
         }
 
         private void HandleVisibilityChanged(bool visible)
         {
+
+            _playerCurrentlyVisible = visible;
+            
             if (visible)
+            {
+                NPCManager.Instance.RegisterInRangeNpc(_fsm as WarriorStateMachine);
                 _fsm?.ConfirmPlayerVisibilityAndEngage();
+            }
+
             else
+            {
+                NPCManager.Instance.UnregisterOutOfRangeNpc(_fsm as WarriorStateMachine);
                 _fsm?.NotifyPlayerLostSight();
+            }
+                
         }
+        public bool IsPlayerCurrentlyVisible() => _playerCurrentlyVisible;
     }
 }

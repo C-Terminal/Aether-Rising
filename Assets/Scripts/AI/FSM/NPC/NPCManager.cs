@@ -106,10 +106,6 @@ namespace AI.FSM.NPC
                 ResetAttackTimer();
             }
         }
-
-        // --- Public Methods for State Machines/Detectors ---
-
-        // Called by PlayerDetector when an NPC detects the player visually
         public void RegisterInRangeNpc(WarriorStateMachine npc)
         {
             if (npc != null && !npcsInRange.Contains(npc))

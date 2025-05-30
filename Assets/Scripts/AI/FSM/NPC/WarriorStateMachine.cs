@@ -4,6 +4,7 @@ using System.Linq;
 using AI.FSM.NPC.States;
 using AI.FSM.Warrior.States;
 using AI.NPC.Movement;
+using AI.NPC.Sensing;
 using Animation.AnimControllers;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
@@ -43,6 +44,7 @@ namespace AI.FSM.NPC
         public override Health NpcHealth { get; set; }
         public Health WarriorHealth { get; private set; } // Reference to the Health component
 
+        private NPCPerceptionCoordinator _perceptionCoordinator;
         
         public AIMovementController MovementController { get; private set; }
         public new IState CurrentState { get; private set; }
@@ -82,6 +84,10 @@ namespace AI.FSM.NPC
             MovementController = GetComponent<AIMovementController>();
             if (MovementController == null)
                 Debug.LogError($"[{gameObject.name}] WarriorStateMachine: AIMovementController component not found!", this);
+            
+            _perceptionCoordinator = GetComponentInChildren<NPCPerceptionCoordinator>();
+            if (_perceptionCoordinator == null)
+                Debug.LogError($"[{gameObject.name}] WarriorStateMachine: NPCPerceptionCoordinator component not found!", this);
             
             // Find and cache all IState components attached to this GameObject
             states = GetComponents<IState>().ToList();
@@ -194,40 +200,18 @@ namespace AI.FSM.NPC
         // --- Public Helper Methods ---
 
         // Checks if the player is within the defined viewing angle
-// Modify IsPlayerVisible to potentially use the cached player transform
-// if its main Player property isn't set or to ensure it's checking the correct target.
-        public override bool IsPlayerVisible() // Consider adding: Transform targetToCheck
+        // Modify IsPlayerVisible to potentially use the cached player transform
+        // if its main Player property isn't set or to ensure it's checking the correct target.
+        public override bool IsPlayerVisible() // Consider adding: Transform targetToCheckw
         {
+            //TODO: figure out later
             var target = _playerInTriggerZoneCache ?? null; // Prioritize detector's cache if available
 
-            if (target == null || IsPlayerDead) return false;
+            // if (target == null || IsPlayerDead) return false;
+            
+            if (IsPlayerDead) return false;
+            return _perceptionCoordinator?.IsPlayerCurrentlyVisible() ?? false;
 
-            var directionToTarget = target.position - transform.position;
-            var angle = Vector3.Angle(transform.forward, directionToTarget.normalized);
-
-            if (angle < visibleChaseAngle / 2f)
-            {
-                // Line of Sight Check
-                var distanceToTarget = directionToTarget.magnitude;
-                // Ensure raycast doesn't hit self by starting slightly in front or using a layer mask
-                var rayStart = transform.position + transform.up * Agent.height / 2f; // Approx eye level
-                RaycastHit hit;
-                // TODO: Define an obstacleLayerMask in WarriorStateMachine and pass it here
-                // For now, assuming default raycast behavior.
-                if (Physics.Raycast(rayStart, directionToTarget.normalized, out hit,
-                        distanceToTarget /*, obstacleLayerMask*/))
-                {
-                    if (hit.transform == target ||
-                        hit.transform.IsChildOf(target)) // Check if hit is player or part of player
-                        return true; // Direct line of sight
-                    // Debug.Log($"[{gameObject.name}] IsPlayerVisible: LOS blocked by {hit.collider.name}");
-                    return false; // Blocked by an obstacle
-                }
-
-                return true; // No obstacles in the way (should ideally only happen if distanceToTarget is very small)
-            }
-
-            return false;
         }
 
         // Add this to WarriorStateMachine.cs
@@ -386,7 +370,7 @@ namespace AI.FSM.NPC
         // New methods to be called by PlayerDetector or its coroutine:
 
         /// <summary>
-        ///     Called by PlayerDetector when the player enters or exits its trigger volume.
+        ///     Called by NPCPerceptionCoordinator when the player enters or exits its trigger volume.
         /// </summary>
         public void NotifyPlayerInDetectionZone(bool isInZone, Transform playerTransformIfInZone)
         {
@@ -439,6 +423,12 @@ namespace AI.FSM.NPC
         {
             if (IsPlayerDead || IsDead) return;
 
+            // Register with NPCManager if not already registered
+            if (HasSpottedPlayer && NPCManager.Instance != null)
+            {
+                NPCManager.Instance.RegisterInRangeNpc(this);
+            }
+            
             // If not already actively engaging (chasing, attacking, circling etc.)
             if (!IsInEngagedState())
             {
@@ -457,8 +447,7 @@ namespace AI.FSM.NPC
                     Debug.LogError($"[{gameObject.name}] WarriorStateMachine: ChaseState not found to engage player!",
                         this);
             }
-
-            //TODO: flesh out paths
+            
             if (IsPlayerAttackable())
             {
                 Debug.Log(
