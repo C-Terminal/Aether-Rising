@@ -10,7 +10,7 @@ namespace Characters.NPC
 {
     [RequireComponent(typeof(Animator))]
     [RequireComponent(typeof(NavMeshAgent))]
-    public class NPCController : MonoBehaviour
+    public class NPCController : MonoBehaviour, INPCController
     {
         [Header("Weapon Arsenal")]
         [Tooltip("Transform on the rig where the weapon will be parented (e.g., hand bone).")]
@@ -176,7 +176,7 @@ namespace Characters.NPC
             _currentArsenalItem = null;
         }
 
-        private void EquipWeapon(ArsenalItem item)
+        public void EquipWeapon(ArsenalItem item)
         {
             // Instantiate weapon
             if (item.weaponPrefab != null)

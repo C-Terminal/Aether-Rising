@@ -73,6 +73,8 @@ namespace Combat.DamageSystem.Health
             // rather than directly in Health.
         }
 
+        public bool IsAlive => !IsDead;
+
         // Event triggered when health changes but NPC is not dead yet.
         // The string parameter was used in the original to pass the tag of the damaged object.
         public event Action<string, string> OnHealthDepleted; // (victimTag, attackerTag)

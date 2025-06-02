@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using AI.NPC.Sensing.Vision;
 using UnityEngine;
 
 namespace AI.NPC.Sensing
@@ -8,7 +9,7 @@ namespace AI.NPC.Sensing
     /// Vision sensor that periodically checks visibility using a configurable evaluator function.
     /// Supports manual checks, state tracking, and debugging capabilities.
     /// </summary>
-    public class VisionSensor : MonoBehaviour
+    public class VisionSensor : MonoBehaviour, IVisionSensor
     {
         [Header("Configuration")]
         [SerializeField] private float checkInterval = 0.2f;
@@ -293,6 +294,11 @@ namespace AI.NPC.Sensing
         }
 
         #endregion
+
+        public bool CanSeePlayer(Transform player)
+        {
+            return LastVisibilityState;
+        }
     }
 
     #region Custom Attributes

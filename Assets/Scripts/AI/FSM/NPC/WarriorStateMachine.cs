@@ -5,6 +5,7 @@ using AI.FSM.NPC.States;
 using AI.FSM.Warrior.States;
 using AI.NPC.Movement;
 using AI.NPC.Sensing;
+using AI.NPC.Sensing.Vision;
 using Animation.AnimControllers;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
@@ -33,6 +34,15 @@ namespace AI.FSM.NPC
 
         // State & Component References
         public List<IState> states = new(); // Holds all state components attached
+        
+        // Core dependencies
+        private INavAgent agent;
+        private ICharacterAnimator animator;
+        private INPCController controller;
+        private IHealth health;
+        private IVisionSensor vision;
+        // private ITargetingSensor targeting;
+        // private IZoneDetector zone;
         public override NPCController NpcController { get; set; } // Reference to NPCController
         public override Transform Player { get; set; }
 
@@ -58,6 +68,8 @@ namespace AI.FSM.NPC
 
         private new void Awake()
         {
+            // TryAutoInjectDependencies();
+            
             // Cache essential components
             Player = GameObject.FindWithTag("Player")?.transform;
             if (Player == null)
@@ -122,6 +134,51 @@ namespace AI.FSM.NPC
                         this);
             }
         }
+
+        private void TryAutoInjectDependencies()
+        {
+            {
+                // Fallback for scene-based gameplay
+                if (agent == null && TryGetComponent<NavMeshAgent>(out var realAgent))
+                    agent = new NavMeshAgentWrapper(realAgent);
+
+                if (animator == null && TryGetComponent<CharacterAnimator>(out var a))
+                    animator = a;
+
+                if (controller == null && TryGetComponent<NPCController>(out var c))
+                    controller = c;
+
+                if (health == null && TryGetComponent<Health>(out var h))
+                    health = h;
+
+                if (vision == null && TryGetComponent<VisionSensor>(out var v))
+                    vision = v;
+
+                // if (targeting == null && TryGetComponent<TargetingSensor>(out var t))
+                //     targeting = t;
+                //
+                // if (zone == null && TryGetComponent<ZoneDetector>(out var z))
+                //     zone = z;
+            }
+        }
+
+        // public void InjectDependencies(
+        //     INavAgent agent,
+        //     ICharacterAnimator animator,
+        //     INPCController controller,
+        //     IHealth health,
+        //     IVisionSensor vision,
+        //     ITargetingSensor targeting,
+        //     IZoneDetector zone)
+        // {
+        //     this.agent = agent;
+        //     this.animator = animator;
+        //     this.controller = controller;
+        //     this.health = health;
+        //     this.vision = vision;
+        //     this.targeting = targeting;
+        //     this.zone = zone;
+        // }
 
         private void Start()
         {

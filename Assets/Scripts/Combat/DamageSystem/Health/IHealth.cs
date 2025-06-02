@@ -6,5 +6,7 @@
         void TakeDamage(int amount, string objTag);
         void Die();
         // Could also include MaxHealth, IsDead properties/methods if needed by other systems directly
+        
+        bool IsAlive { get; }
     }
 }

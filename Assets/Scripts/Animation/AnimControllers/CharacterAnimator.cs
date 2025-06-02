@@ -7,7 +7,7 @@ namespace Animation.AnimControllers
     /// Provides a comprehensive API to set animation parameters based on character actions and FSM states.
     /// </summary>
     [RequireComponent(typeof(Animator))]
-    public class CharacterAnimator : MonoBehaviour
+    public class CharacterAnimator : MonoBehaviour, ICharacterAnimator
     {
         private Animator _animator;
 
@@ -239,6 +239,14 @@ namespace Animation.AnimControllers
                 return _animator.GetCurrentAnimatorStateInfo(layerIndex).IsName(stateName);
             }
             return false;
+        }
+
+        public void PlayAnimation(string animationName)
+        {
+            if (_animator != null)
+            {
+                _animator.Play(animationName);
+            }
         }
     }
 }
