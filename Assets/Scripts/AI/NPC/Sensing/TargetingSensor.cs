@@ -6,9 +6,11 @@ namespace AI.NPC.Sensing
 {
     public class TargetingSensor : MonoBehaviour
     {
-        [SerializeField] private float actionRange = 2f;
-        [SerializeField] private float visibleChaseAngle = 90f;
+        // [SerializeField] private float actionRange = 2f;
+        // [SerializeField] private float visibleChaseAngle = 90f;
         [SerializeField] private LayerMask obstacleLayerMask = -1;
+        
+        [SerializeField] private NPCPerceptionConfig perceptionConfig;
         public Transform CurrentTarget { get; private set; }
 
         public event Action<bool> OnTargetRangeChanged;
@@ -24,7 +26,7 @@ namespace AI.NPC.Sensing
             }
 
             float distance = Vector3.Distance(transform.position, CurrentTarget.position);
-            UpdateRange(distance <= actionRange);
+            UpdateRange(distance <= perceptionConfig.actionRange);
         }
 
         public void SetTarget(Transform newTarget)
@@ -40,7 +42,7 @@ namespace AI.NPC.Sensing
             var directionToTarget = CurrentTarget.position - transform.position;
             var angle = Vector3.Angle(transform.forward, directionToTarget.normalized);
 
-            if (angle < visibleChaseAngle / 2f)
+            if (angle < perceptionConfig.fieldOfView / 2f)
             {
                 var distanceToTarget = directionToTarget.magnitude;
                 var rayStart = transform.position + transform.up * GetComponent<NavMeshAgent>().height / 2f;

@@ -17,15 +17,8 @@ namespace AI.FSM.NPC
     public class WarriorStateMachine : StateMachineNew, IPerceptionAwareFSM
     {
         // Configuration
-        [Tooltip("Warrior's Field Of View for initiating chase")] [SerializeField]
-        private float visibleChaseAngle = 180f;
-
-        [Tooltip("Rotation speed when facing the player")] [SerializeField]
-        private float rotSpeed = 2f;
-
-        [Tooltip("NPC's attack distance to Player")] [SerializeField]
-        private float attackDistance = 3f;
-
+        [SerializeField] private NPCPerceptionConfig perceptionConfig;
+        
         // Add near other properties:
         private Transform _playerInTriggerZoneCache; // Player transform from detector
         public Action<IState, IState> OnStateChanged; // Event for state changes
@@ -276,7 +269,7 @@ namespace AI.FSM.NPC
         {
             // Base engagement distance is the attack distance plus some buffer
             // This gives NPCs some room to maneuver before breaking engagement
-            var baseDistance = attackDistance * 2.5f;
+            var baseDistance = perceptionConfig.actionRange * 2.5f;
 
             // Optionally adjust based on weapon type
             if (NpcController != null)
@@ -299,7 +292,7 @@ namespace AI.FSM.NPC
         {
             if (Player == null) return false;
             var npcToPlayerDir = Player.position - transform.position;
-            return npcToPlayerDir.magnitude < attackDistance;
+            return npcToPlayerDir.magnitude < perceptionConfig.actionRange;
         }
 
         // Smoothly rotates the NPC to face the player's position on the horizontal plane

@@ -12,13 +12,13 @@ namespace AI.NPC.Sensing
     public class VisionSensor : MonoBehaviour, IVisionSensor
     {
         [Header("Configuration")]
-        [SerializeField] private float checkInterval = 0.2f;
+        [SerializeField] private NPCPerceptionConfig config;
         [SerializeField] private bool enableDebugLogs = false;
-
+        
         [Header("Debug Info (Runtime)")]
         [SerializeField, ReadOnly] private bool _isChecking;
         [SerializeField, ReadOnly] private bool _lastSeen;
-
+        
         // Events
         public event Action<bool> OnVisibilityChanged;
         
@@ -34,8 +34,8 @@ namespace AI.NPC.Sensing
         public bool LastVisibilityState => _lastSeen;
         public float CheckInterval 
         { 
-            get => checkInterval; 
-            set => checkInterval = Mathf.Max(0.01f, value); 
+            get => config.visibilityCheckInterval; 
+            set => config.visibilityCheckInterval = Mathf.Max(0.01f, value); 
         }
 
         #region Public Interface
@@ -152,7 +152,7 @@ namespace AI.NPC.Sensing
             while (true)
             {
                 PerformVisibilityCheck();
-                yield return new WaitForSeconds(checkInterval);
+                yield return new WaitForSeconds(config.visibilityCheckInterval);
             }
         }
 
@@ -202,9 +202,9 @@ namespace AI.NPC.Sensing
         private void OnValidate()
         {
             // Ensure check interval is reasonable
-            if (checkInterval <= 0)
+            if (config.visibilityCheckInterval <= 0)
             {
-                checkInterval = 0.1f;
+                config.visibilityCheckInterval = 0.1f;
                 Debug.LogWarning($"[{gameObject.name}] VisionSensor checkInterval must be positive. Reset to 0.1s");
             }
         }
