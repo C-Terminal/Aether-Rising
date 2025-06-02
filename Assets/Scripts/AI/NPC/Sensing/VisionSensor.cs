@@ -299,6 +299,11 @@ namespace AI.NPC.Sensing
         {
             return LastVisibilityState;
         }
+        
+        public void SetConfig(NPCPerceptionConfig newConfig)
+        {
+            config = newConfig;
+        }
     }
 
     #region Custom Attributes
