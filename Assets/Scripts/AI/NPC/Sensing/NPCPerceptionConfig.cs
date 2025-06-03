@@ -20,5 +20,22 @@ namespace AI.NPC.Sensing
         [Tooltip("Rotation speed when turning to face the player")]
         public float rotationSpeed = 2f;
     
+        public FOVMode fovMode = FOVMode.Calm;
+
+        public float GetFOVAngle()
+        {
+            return (float)fovMode;
+        }
+        
+    }
+    
+    
+    
+    public enum FOVMode
+    {
+        Calm = 120,
+        Alert = 180,
+        Aggressive = 270,
+        Panicked = 360
     }
 }

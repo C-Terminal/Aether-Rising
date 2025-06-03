@@ -1,6 +1,7 @@
 ﻿using AI.FSM.NPC;
 using AI.NPC.Movement;
 using AI.NPC.Sensing;
+using AI.NPC.Sensing.Vision;
 using Registries.ScriptableObjects;
 using UnityEngine;
 
@@ -46,6 +47,13 @@ public class NPCPerceptionAutoBinder : MonoBehaviour
         {
             var field = typeof(AIMovementController).GetField("config", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (field != null) field.SetValue(move, config);
+        }
+        
+        var perceptionVisualizer = GetComponent<NPCPerceptionVisualizer>();
+        if (perceptionVisualizer != null)
+        {
+            var field = typeof(NPCPerceptionVisualizer).GetField("config", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (field != null) field.SetValue(perceptionVisualizer, config);
         }
     }
 }

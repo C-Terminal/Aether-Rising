@@ -12,10 +12,12 @@ namespace AI.NPC.Sensing
         
         [SerializeField] private NPCPerceptionConfig perceptionConfig;
         public Transform CurrentTarget { get; private set; }
-
+        float fovAngle => perceptionConfig.GetFOVAngle();
         public event Action<bool> OnTargetRangeChanged;
 
         private bool _wasInRange;
+
+
 
         private void Update()
         {
@@ -42,7 +44,7 @@ namespace AI.NPC.Sensing
             var directionToTarget = CurrentTarget.position - transform.position;
             var angle = Vector3.Angle(transform.forward, directionToTarget.normalized);
 
-            if (angle < perceptionConfig.fieldOfView / 2f)
+            if (angle < perceptionConfig.GetFOVAngle() / 2f)
             {
                 var distanceToTarget = directionToTarget.magnitude;
                 var rayStart = transform.position + transform.up * GetComponent<NavMeshAgent>().height / 2f;

@@ -201,6 +201,11 @@ namespace AI.NPC.Sensing
 
         private void OnValidate()
         {
+            if(config == null)
+            {
+                Debug.LogWarning($"[{gameObject.name}] No config assigned to VisionSensor");
+                return;
+            }
             // Ensure check interval is reasonable
             if (config.visibilityCheckInterval <= 0)
             {

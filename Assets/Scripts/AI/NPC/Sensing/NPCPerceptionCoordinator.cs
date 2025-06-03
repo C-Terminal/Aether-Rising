@@ -92,6 +92,7 @@ namespace AI.NPC.Sensing
             {
                 zoneDetector.OnPlayerEnter += HandlePlayerEnterZone;
                 zoneDetector.OnPlayerExit += HandlePlayerExitZone;
+                
             }
 
             if (visionSensor != null)
@@ -99,9 +100,11 @@ namespace AI.NPC.Sensing
                 visionSensor.OnVisibilityChanged += HandleVisibilityChanged;
             }
 
-            // Subscribe to NPCManager events for coordination
-            NPCManager.OnNPCRegistered += HandleNPCRegistered;
-            NPCManager.OnNPCUnregistered += HandleNPCUnregistered;
+            // // Subscribe to NPCManager events for coordination
+            // NPCManager.OnNPCRegistered += HandleNPCRegistered;
+            // NPCManager.OnNPCUnregistered += HandleNPCUnregistered;
+            
+            
         }
 
         private void UnsubscribeFromEvents()
@@ -117,9 +120,9 @@ namespace AI.NPC.Sensing
                 visionSensor.OnVisibilityChanged -= HandleVisibilityChanged;
             }
 
-            // Unsubscribe from NPCManager events
-            NPCManager.OnNPCRegistered -= HandleNPCRegistered;
-            NPCManager.OnNPCUnregistered -= HandleNPCUnregistered;
+            // // Unsubscribe from NPCManager events
+            // NPCManager.OnNPCRegistered -= HandleNPCRegistered;
+            // NPCManager.OnNPCUnregistered -= HandleNPCUnregistered;
         }
 
         #endregion
