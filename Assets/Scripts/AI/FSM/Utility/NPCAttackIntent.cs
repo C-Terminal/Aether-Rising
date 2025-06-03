@@ -70,16 +70,16 @@ namespace AI.FSM.Utility
         }
 
         /// <summary>
-        /// Call when switching to PrepareAttack to centralize cleanup.
+        /// Call when switching to StrikeState to centralize cleanup.
         /// </summary>
         public void CommitAttack()
         {
-            Debug.Log($"[{_fsm.name}] Committing attack. Switching to PrepareAttackState.");
-            var prep = _fsm.FindState<W_PrepareAttackState>();
+            Debug.Log($"[{_fsm.name}] Committing attack. Switching to W_StrikeState.");
+            var prep = _fsm.FindState<W_StrikeState>();
             if (prep != null)
                 _fsm.SwitchState(prep);
             else
-                Debug.LogError($"[{_fsm.name}] W_PrepareAttackState not found.");
+                Debug.LogError($"[{_fsm.name}] W_StrikeState not found.");
         }
     }
 }

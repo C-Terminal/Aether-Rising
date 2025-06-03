@@ -274,6 +274,16 @@ namespace Characters.NPC
             
             NotifyPerceptionOfCombatState(CombatState.Ready);
         }
+        
+        public void ExecuteRangedAttack()
+        {
+            if (characterAnimator == null) return;
+            
+            Debug.Log($"[{gameObject.name}] NPCController: Action - ExecuteRangedAttack.");
+            characterAnimator.SetAttacking(true);
+            
+            NotifyPerceptionOfCombatState(CombatState.Striking);
+        }
 
         #endregion
 

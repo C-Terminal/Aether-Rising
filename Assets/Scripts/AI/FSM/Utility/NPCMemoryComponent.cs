@@ -1,24 +1,67 @@
 ﻿using System;
 using UnityEngine;
+#if UNITY_EDITOR
+#endif
 
 namespace AI.FSM.Utility
 {
     [DisallowMultipleComponent]
     public class NPCMemoryComponent : MonoBehaviour
     {
-        [Header("Combat Personality")]
-        [Range(0f, 1f)]
+        [Header("Personality Template")]
+        [SerializeField] private NPCPersonalityAsset personalityPreset;
+        
         public float aggression = 0.5f;
 
-        [Range(0f, 1f)]
-        public float morale = 0.7f;
+        [Range(0f, 1f)] public float morale = 0.7f;
 
-        [Header("Runtime Memory")]
-        public bool lastAttackRequestSuccess;
+        [Header("Runtime Memory")] public bool lastAttackRequestSuccess;
+
         public float lastAttackRequestTime;
+        public float lastPlayerSightingTime;
+
+        [Header("Debug Visualization")] [SerializeField]
+        private bool showDebugGizmos = true;
+
+        [SerializeField] private Color aggressionColor = Color.red;
+        [SerializeField] private Color moraleColor = Color.blue;
+        [SerializeField] private float sphereSize = 0.25f;
 
         public Vector3? lastKnownPlayerPosition;
-        public float lastPlayerSightingTime;
+
+
+        
+        public float TimeSinceLastAttackRequest => Time.time - lastAttackRequestTime;
+
+        private void Awake()
+        {
+            if (personalityPreset != null)
+            {
+                aggression = personalityPreset.aggression;
+                morale = personalityPreset.morale;
+            }
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!showDebugGizmos) return;
+
+            // Aggression intensity as red sphere
+            Gizmos.color = aggressionColor;
+            Gizmos.DrawWireSphere(transform.position + Vector3.up * 2f, aggression * 2f);
+
+            // Morale intensity as blue sphere
+            Gizmos.color = moraleColor;
+            Gizmos.DrawWireSphere(transform.position + Vector3.up * 2f + Vector3.right * 0.5f, morale * 2f);
+
+            // Last seen player position
+            if (lastKnownPlayerPosition.HasValue)
+            {
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawSphere(lastKnownPlayerPosition.Value + Vector3.up * 1f, sphereSize);
+                Gizmos.DrawLine(transform.position + Vector3.up, lastKnownPlayerPosition.Value + Vector3.up);
+            }
+        }
 
         public void MarkPlayerSeen(Vector3 position)
         {
@@ -33,7 +76,7 @@ namespace AI.FSM.Utility
 
         public bool HasRecentPlayerMemory(float maxAge = 5f)
         {
-            return lastKnownPlayerPosition.HasValue && (Time.time - lastPlayerSightingTime) <= maxAge;
+            return lastKnownPlayerPosition.HasValue && Time.time - lastPlayerSightingTime <= maxAge;
         }
 
         public void MarkAttackRequest(bool success)
@@ -41,9 +84,5 @@ namespace AI.FSM.Utility
             lastAttackRequestSuccess = success;
             lastAttackRequestTime = Time.time;
         }
-        
-        
-
-        public float TimeSinceLastAttackRequest => Time.time - lastAttackRequestTime;
     }
 }

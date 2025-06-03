@@ -16,7 +16,8 @@ using UnityEngine.AI;
 
 namespace AI.FSM.NPC
 {
-    public class WarriorStateMachine : StateMachineNew, IPerceptionAwareFSM
+    public class 
+        WarriorStateMachine : StateMachineNew, IPerceptionAwareFSM
     {
         // Configuration
         [SerializeField] private NPCPerceptionConfig perceptionConfig;
@@ -252,6 +253,9 @@ namespace AI.FSM.NPC
             IState oldState = CurrentState;
             base.SwitchState(newState);
     
+            //Set the current state
+            CurrentState = newState;
+
             // Fire state change event
             OnStateChanged?.Invoke(oldState, newState);
         }
@@ -464,7 +468,7 @@ namespace AI.FSM.NPC
                     Debug.Log(
                         $"[{gameObject.name}] WarriorStateMachine: Player reference set via PlayerDetector to {Player.name}.");
                 }
-                // Current state might react to this, e.g., an Idle state might become more alert.
+                //TODO: mak Current state might react to this, e.g., an Idle state might become more alert.
             }
             else
             {

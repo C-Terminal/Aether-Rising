@@ -50,30 +50,22 @@ namespace AI.FSM.Utility
             return false;
         }
 
+
         /// <summary>
         /// Retreat if player is too close and low on health.
         /// </summary>
         public bool ShouldFallback()
         {
             if (_player == null || _fsm.IsDead) return false;
-
-            float distance = Vector3.Distance(_npc.position, _player.position);
-            return _fsm.WarriorHealth.CurrentHealth <= 25f && distance < 6f;
-        }
-
         
-        // public bool ShouldFallback()
-        // {
-        //     if (_player == null || _fsm.IsDead) return false;
-        //
-        //     float distance = Vector3.Distance(_npc.position, _player.position);
-        //     float morale = _fsm.GetComponent<NPCMemoryComponent>()?.morale ?? 0.7f;
-        //
-        //     bool lowHealth = _fsm.WarriorHealth.CurrentHealth <= 30f;
-        //     bool isAfraid = morale < 0.5f;
-        //
-        //     return lowHealth && isAfraid && distance < 6f;
-        // }
+            float distance = Vector3.Distance(_npc.position, _player.position);
+            float morale = _fsm.GetComponent<NPCMemoryComponent>()?.morale ?? 0.7f;
+        
+            bool lowHealth = _fsm.WarriorHealth.CurrentHealth <= 30f;
+            bool isAfraid = morale < 0.5f;
+        
+            return lowHealth && isAfraid && distance < 6f;
+        }
 
 
         /// <summary>

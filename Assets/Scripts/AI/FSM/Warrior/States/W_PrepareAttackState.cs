@@ -2,6 +2,7 @@
 using System.Threading;
 using AI.FSM.NPC;
 using AI.FSM.NPC.States;
+using AI.FSM.Utility;
 using AI.NPC.Sensing;
 using Animation.AnimControllers;
 using Core.Events;
@@ -16,6 +17,11 @@ namespace AI.FSM.Warrior.States
 {
     public class W_PrepareAttackState : MonoBehaviour, IState
     {
+        
+        private NPCAttackIntent _attackIntent;
+        private NPCIntentController _intentController;
+        private NPCMemoryComponent _memory;
+        private WarriorStateMachine _warriorFSM;
         // Remove timer-based telegraph - now purely animation driven
         private bool _isTelegraphing;
 
@@ -26,7 +32,7 @@ namespace AI.FSM.Warrior.States
 
         // Cancellation token for safety timeout (optional fallback)
         private CancellationTokenSource _safetyTimeoutTokenSource;
-        private StateMachineNew _stateMachineNew;
+        // private StateMachineNew _warriorFSM;
         private NavMeshAgent agent;
         private Vector3 attackPosition; // Position to move to before telegraphing
         private CharacterAnimator charAnim; // Assuming this is used
@@ -53,7 +59,7 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateEnter()
         {
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Entering PrepareAttackState - Animation Driven Mode.");
+            Debug.Log($"[{_warriorFSM.gameObject.name}] Entering PrepareAttackState - Animation Driven Mode.");
 
             _isTelegraphing = true;
 
@@ -65,9 +71,9 @@ namespace AI.FSM.Warrior.States
             // For now, assume in position or handled by Chase/Circle
 
             agent.isStopped = true; // Stop to telegraph
-            _stateMachineNew.RotateToFacePlayer();
+            _warriorFSM.RotateToFacePlayer();
 
-            var npcController = _stateMachineNew.NpcController;
+            var npcController = _warriorFSM.NpcController;
             if (npcController != null)
             {
                 // Start the telegraph action - this should trigger the telegraph animation
@@ -79,12 +85,12 @@ namespace AI.FSM.Warrior.States
                 if (arsenalItem.HasValue && arsenalItem.Value.telegraphDuration > 0)
                 {
                     telegraphDuration = arsenalItem.Value.telegraphDuration;
-                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph duration set to: {telegraphDuration}");
+                    Debug.Log($"[{_warriorFSM.gameObject.name}] Telegraph duration set to: {telegraphDuration}");
                 }
                 else
                 {
                     Debug.Log(
-                        $"[{_stateMachineNew.gameObject.name}] Using default telegraph duration: {telegraphDuration}");
+                        $"[{_warriorFSM.gameObject.name}] Using default telegraph duration: {telegraphDuration}");
                 }
 
                 // Update safety timeout duration based on telegraph duration
@@ -98,7 +104,7 @@ namespace AI.FSM.Warrior.States
                     AttackerTransform = transform,
                     WeaponType = arsenalItem?.name ?? "Unknown",
                     Duration = telegraphDuration,
-                    TargetTransform = _stateMachineNew.Player,
+                    TargetTransform = _warriorFSM.Player,
                     EffectIntensity = 1.0f
                 });
             }
@@ -111,22 +117,35 @@ namespace AI.FSM.Warrior.States
         {
             if (!_isTelegraphing) return;
 
-            _stateMachineNew.RotateToFacePlayer();
+            _warriorFSM.RotateToFacePlayer();
 
             if (!IsTargetInRange() || !CanSeeTarget())
             {
                 var reason = !IsTargetInRange() ? "TargetOutOfRange" : "TargetNotVisible";
                 Debug.Log(
-                    $"[{_stateMachineNew.gameObject.name}] Target lost during telegraph ({reason}). Aborting to Chase.");
+                    $"[{_warriorFSM.gameObject.name}] Target lost during telegraph ({reason}). Aborting to Chase.");
 
                 AbortTelegraphAndTransitionTo<ChaseState>();
+            }
+            
+            // NEW: Check if we should seek cover or fallback due to morale/health
+            if (_intentController.ShouldSeekCover())
+            {
+                AbortTelegraphAndTransitionTo<CoverState>();
+                return;
+            }
+
+            if (_intentController.ShouldFallback())
+            {
+                AbortTelegraphAndTransitionTo<W_RetreatState>();
+                return;
             }
         }
 
 
         public void OnStateExit()
         {
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Exiting PrepareAttackState.");
+            Debug.Log($"[{_warriorFSM.gameObject.name}] Exiting PrepareAttackState.");
 
             _isTelegraphing = false;
 
@@ -136,7 +155,7 @@ namespace AI.FSM.Warrior.States
                 if (!_safetyTimeoutTokenSource.Token.IsCancellationRequested)
                 {
                     _safetyTimeoutTokenSource.Cancel();
-                    Debug.Log($"[{_stateMachineNew.gameObject.name}] Cancelled safety timeout on state exit.");
+                    Debug.Log($"[{_warriorFSM.gameObject.name}] Cancelled safety timeout on state exit.");
                 }
 
                 _safetyTimeoutTokenSource.Dispose();
@@ -156,7 +175,7 @@ namespace AI.FSM.Warrior.States
                 return _perceptionCoordinator.GetCurrentTarget();
 
             // Fallback to state machine's player reference if perception system not available
-            return _stateMachineNew.Player;
+            return _warriorFSM.Player;
         }
 
         /// <summary>
@@ -168,7 +187,7 @@ namespace AI.FSM.Warrior.States
             if (target == null) return false;
 
             var distance = Vector3.Distance(transform.position, target.position);
-            return distance <= _stateMachineNew.GetMaxEngagementDistance();
+            return distance <= _warriorFSM.GetMaxEngagementDistance();
         }
 
         /// <summary>
@@ -179,7 +198,7 @@ namespace AI.FSM.Warrior.States
             if (_perceptionCoordinator != null) return _perceptionCoordinator.IsPlayerCurrentlyVisible();
 
             // Fallback to state machine's visibility check
-            return _stateMachineNew.IsPlayerVisible();
+            return _warriorFSM.IsPlayerVisible();
         }
 
 
@@ -203,7 +222,7 @@ namespace AI.FSM.Warrior.States
             try
             {
                 Debug.Log(
-                    $"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout started ({_safetyTimeoutDuration}s)");
+                    $"[{_warriorFSM.gameObject.name}] Telegraph safety timeout started ({_safetyTimeoutDuration}s)");
 
                 await UniTask.Delay(TimeSpan.FromSeconds(_safetyTimeoutDuration), cancellationToken: cancellationToken);
 
@@ -211,20 +230,20 @@ namespace AI.FSM.Warrior.States
                 if (_isTelegraphing)
                 {
                     Debug.LogWarning(
-                        $"[{_stateMachineNew.gameObject.name}] Telegraph animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
+                        $"[{_warriorFSM.gameObject.name}] Telegraph animation event didn't fire within {_safetyTimeoutDuration}s. Forcing completion.");
                     TransitionToStrikeState();
                 }
             }
             catch (OperationCanceledException)
             {
                 Debug.Log(
-                    $"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout cancelled (completed normally).");
+                    $"[{_warriorFSM.gameObject.name}] Telegraph safety timeout cancelled (completed normally).");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[{_stateMachineNew.gameObject.name}] Telegraph safety timeout error: {ex.Message}");
+                Debug.LogError($"[{_warriorFSM.gameObject.name}] Telegraph safety timeout error: {ex.Message}");
                 // Force completion on error
-                if (_isTelegraphing && _stateMachineNew != null) TransitionToStrikeState();
+                if (_isTelegraphing && _warriorFSM != null) TransitionToStrikeState();
             }
         }
 
@@ -235,45 +254,53 @@ namespace AI.FSM.Warrior.States
         private void OnTelegraphComplete(AttackTelegraphCompleteEventData eventData)
         {
             // Only respond to events from this NPC
-            if (eventData.AttackerTransform.gameObject != _stateMachineNew.gameObject) return;
+            if (eventData.AttackerTransform.gameObject != _warriorFSM.gameObject) return;
 
+            _memory?.MarkAttackRequest(true);
+            
             if (!_isTelegraphing)
             {
                 //TODO: maybe transition to a different state, OR change the conditions for exiting Locomotion cuz this is weird
                 Debug.Log(
-                    $"[{_stateMachineNew.gameObject.name}] Received telegraph complete event but not currently telegraphing. Ignoring.");
+                    $"[{_warriorFSM.gameObject.name}] Received telegraph complete event but not currently telegraphing. Ignoring.");
                 return;
             }
 
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Telegraph complete event received from animation.");
+            Debug.Log($"[{_warriorFSM.gameObject.name}] Telegraph complete event received from animation.");
 
             // Cancel the safety timeout since we received the proper event
             if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
             {
                 _safetyTimeoutTokenSource.Cancel();
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] Safety timeout cancelled by animation event.");
+                Debug.Log($"[{_warriorFSM.gameObject.name}] Safety timeout cancelled by animation event.");
             }
 
-            var npcController = _stateMachineNew.NpcController;
+            var npcController = _warriorFSM.NpcController;
             if (npcController != null) npcController.EndTelegraphAction();
 
+            
+            
             // Proceed with FSM transition logic
             TransitionToStrikeState();
         }
 
         private void TransitionToStrikeState()
         {
-            if (NPCManager.Instance.GetPrimaryAttacker() == _stateMachineNew)
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
+            if (_attackIntent.HasAssignedAttackTurn())
+            {
+                _attackIntent.CommitAttack(); // Switches to StrikeState
+            }
             else
+            {
                 AbortTelegraphAndTransitionTo<W_CirclingState>();
+            }
         }
 
         private void AbortTelegraphAndTransitionTo<T>() where T : class, IState
         {
             if (!_isTelegraphing) return;
 
-            Debug.Log($"[{_stateMachineNew.gameObject.name}] Aborting telegraph and transitioning to {typeof(T).Name}");
+            Debug.Log($"[{_warriorFSM.gameObject.name}] Aborting telegraph and transitioning to {typeof(T).Name}");
 
             _isTelegraphing = false;
 
@@ -282,31 +309,51 @@ namespace AI.FSM.Warrior.States
                 _safetyTimeoutTokenSource.Cancel();
 
             // End telegraph
-            var npcController = _stateMachineNew.NpcController;
+            var npcController = _warriorFSM.NpcController;
             if (npcController != null) npcController.EndTelegraphAction();
 
-            // Trigger abort event (optional based on situation)
+            //TODO: have the event trigger storage of memory
             EventManager.TriggerEvent(new AttackTelegraphAbortEventData
             {
                 AttackerTransform = transform,
                 Reason = $"TransitionTo{typeof(T).Name}"
             });
+            
+            _memory?.MarkAttackRequest(false);
 
-            _stateMachineNew.SwitchState(_stateMachineNew.FindState<T>());
+            
+            
+            _warriorFSM.SwitchState(_warriorFSM.FindState<T>());
         }
 
 
         public void InitReferences(StateMachineNew stateMachine)
         {
-            _stateMachineNew = stateMachine;
-            agent = _stateMachineNew.Agent;
-            charAnim = _stateMachineNew.CharAnim;
+            
+            _warriorFSM = stateMachine as WarriorStateMachine;
 
-            // Get perception coordinator reference
-            _perceptionCoordinator = _stateMachineNew.GetComponentInChildren<NPCPerceptionCoordinator>();
+            if (_warriorFSM == null)
+            {
+                Debug.LogError($"[{gameObject.name}] W_PrepareAttackState: Invalid FSM passed.");
+                enabled = false;
+                return;
+            }
+
+            agent = _warriorFSM.Agent;
+            charAnim = _warriorFSM.CharAnim;
+
+            _memory = _warriorFSM.GetComponent<NPCMemoryComponent>();
+            _attackIntent = new NPCAttackIntent(_warriorFSM);
+            _intentController = new NPCIntentController(_warriorFSM);
+
+            _perceptionCoordinator = _warriorFSM.GetComponentInChildren<NPCPerceptionCoordinator>();
+            
             if (_perceptionCoordinator == null)
                 Debug.LogWarning(
-                    $"[{_stateMachineNew.gameObject.name}] NPCPerceptionCoordinator not found. Using fallback methods.");
+                    $"[{_warriorFSM.gameObject.name}] NPCPerceptionCoordinator not found. Using fallback methods.");
+        }
+            
+
+           
         }
     }
-}
