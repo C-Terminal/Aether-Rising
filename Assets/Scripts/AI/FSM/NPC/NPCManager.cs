@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace AI.FSM.NPC
 {
@@ -34,7 +36,10 @@ namespace AI.FSM.NPC
         private readonly HashSet<WarriorStateMachine> _npcsInRange = new();
         private readonly List<WarriorStateMachine> _npcsInLevel = new();
         private readonly HashSet<WarriorStateMachine> _currentAttackers = new();
+        private readonly HashSet<WarriorStateMachine> _invitedAttackers = new();
 
+        public static event Action<WarriorStateMachine> OnAttackerSelected;
+        
         private float _attackTimer;
 
         // Singleton
@@ -64,11 +69,20 @@ namespace AI.FSM.NPC
 
         private void Start() => PopulateNPCsInLevel();
 
-        private void OnEnable() =>
+        private void OnEnable()
+        {
             WarriorStateMachine.OnPlayerSpotted += HandlePlayerSpotted;
+            NPCManager.OnAttackerSelected += HandleAttackerSelected;
+        }
+            
 
-        private void OnDisable() =>
+        private void OnDisable()
+        {
             WarriorStateMachine.OnPlayerSpotted -= HandlePlayerSpotted;
+            NPCManager.OnAttackerSelected -= HandleAttackerSelected;
+        }
+            
+        
 
         private void Update() =>
             UpdateAttackCoordination();
@@ -185,7 +199,10 @@ namespace AI.FSM.NPC
             if (!HasAvailableAttackSlots()) return false;
 
             _currentAttackers.Add(npc);
-            Log($"{npc.name} granted attack permission");
+            _invitedAttackers.Remove(npc); // ← Clean up
+            OnAttackerSelected?.Invoke(npc);
+
+            Log($"Granted attack permission to {npc.name}");
             return true;
         }
 
@@ -231,8 +248,10 @@ namespace AI.FSM.NPC
 
             var npc = eligible[Random.Range(0, eligible.Count)];
 
-            Log($"Selected next attacker: {npc.name}");
-            // The NPC will call RequestAttackPermission when ready
+            _invitedAttackers.Add(npc); // Mark as invited
+            Log($"[NPCManager] Selected next attacker: {npc.name}");
+
+            npc.ReceiveAttackInvitation(); // <-- NEW method you'll add
         }
 
         private void ResetAttackTimer(float overrideTime = -1f)
@@ -242,6 +261,13 @@ namespace AI.FSM.NPC
                 : Random.Range(attackTimeRange.x, attackTimeRange.y);
         }
 
+        private void HandleAttackerSelected(WarriorStateMachine selected)
+        {
+            if (selected != this) return;
+            Debug.Log($"[{name}] Confirmed as next attacker.");
+            // Optional: trigger FSM feedback or animation flag
+        }
+        
         #endregion
 
         #region NPC Initialization

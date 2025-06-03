@@ -603,5 +603,15 @@ namespace AI.FSM.NPC
             }
         }
 
+        public void ReceiveAttackInvitation()
+        {
+            Debug.Log($"[{name}] Received attack invitation.");
+    
+            var prepareAttackState = FindState<W_PrepareAttackState>();
+            if (prepareAttackState != null)
+            {
+                SwitchState(prepareAttackState);
+            }
+        }
     }
 }
