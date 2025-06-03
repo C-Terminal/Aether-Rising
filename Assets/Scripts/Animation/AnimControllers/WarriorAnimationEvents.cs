@@ -182,7 +182,7 @@ namespace Animation.AnimControllers
             if (stateMachine != null)
             {
                 var strikeState = stateMachine.FindState<W_StrikeState>();
-                if (strikeState != null) strikeState?.HandleStrikeComplete();
+                // if (strikeState != null) strikeState?.HandleStrikeComplete();
             }
         }
 

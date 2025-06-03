@@ -263,7 +263,7 @@ namespace AI.FSM.Warrior.States
 
         private void TransitionToStrikeState()
         {
-            if (NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
+            if (NPCManager.Instance.GetPrimaryAttacker() == _stateMachineNew)
                 _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_StrikeState>());
             else
                 AbortTelegraphAndTransitionTo<W_CirclingState>();

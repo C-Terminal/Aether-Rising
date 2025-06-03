@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using AI.FSM.NPC.States;
+using AI.FSM.Utility;
 using AI.FSM.Warrior.States;
+using AI.NPC.DebugTools;
 using AI.NPC.Movement;
 using AI.NPC.Sensing;
 using AI.NPC.Sensing.Vision;
@@ -62,6 +64,9 @@ namespace AI.FSM.NPC
         private new void Awake()
         {
             // TryAutoInjectDependencies();
+            
+            // if (GetComponent<NPCMemoryComponent>() == null)
+            //     gameObject.AddComponent<NPCMemoryComponent>();
             
             // Cache essential components
             Player = GameObject.FindWithTag("Player")?.transform;
@@ -197,6 +202,8 @@ namespace AI.FSM.NPC
                 WarriorHealth.OnNpcDeath += NpcDead;
                 WarriorHealth.OnHealthDepleted += HandleDamageTaken; // Renamed for clarity
             }
+            
+            NPCRegistry.Instance?.Register(this);
         }
 
         private void OnDisable()
@@ -214,6 +221,8 @@ namespace AI.FSM.NPC
                 var playerHealth = Player.GetComponent<Health>();
                 if (playerHealth != null) playerHealth.OnPlayerDeath -= PlayerDead;
             }
+            
+            NPCRegistry.Instance?.Unregister(this);
         }
 
         private void HandlePlayerDeath()
@@ -247,6 +256,16 @@ namespace AI.FSM.NPC
             OnStateChanged?.Invoke(oldState, newState);
         }
 
+        public NPCManager.AIAlertLevel CurrentAlertLevel { get; private set; }
+
+        public void SetAlertLevel(NPCManager.AIAlertLevel level)
+        {
+            if (CurrentAlertLevel == level) return;
+
+            CurrentAlertLevel = level;
+            // Optional: Change state, animation, or perception behavior
+        }
+        
         // --- Public Helper Methods ---
 
         // Checks if the player is within the defined viewing angle
@@ -261,6 +280,15 @@ namespace AI.FSM.NPC
             
             if (IsPlayerDead) return false;
             return _perceptionCoordinator?.IsPlayerCurrentlyVisible() ?? false;
+
+        }
+
+        public void Disengage()
+        {
+            if (NPCManager.Instance.IsPlayerGloballySpotted)
+            {
+                // transition to search state, go to lastKnownPlayerPosition
+            }
 
         }
 
@@ -465,6 +493,25 @@ namespace AI.FSM.NPC
         }
 
 
+        public void SetGroupAwareness(Vector3 alertPosition)
+        {
+            if (IsDead || HasSpottedPlayer) return;
+
+            // Optional: store memory of the last seen position
+            var gizmos = GetComponent<NPCPerceptionGizmos>();
+            if (gizmos != null)
+                gizmos.MarkPlayerPosition(alertPosition);
+
+            // Optional: notify perception logic (e.g., FSM states)
+            SetAlertLevel(NPCManager.AIAlertLevel.Alert);
+
+            // Optional: transition to an alert/search state
+            var alertState = FindState<W_AlertState>();
+            if (alertState != null)
+                SwitchState(alertState);
+        }
+
+        
         /// <summary>
         ///     Called by PlayerDetector's coroutine when detailed visibility check confirms player is visible.
         ///     This is where the FSM decides to fully engage.
@@ -476,7 +523,7 @@ namespace AI.FSM.NPC
             // Register with NPCManager if not already registered
             if (HasSpottedPlayer && NPCManager.Instance != null)
             {
-                NPCManager.Instance.RegisterInRangeNpc(this);
+                NPCManager.Instance.RegisterEngagedNPC(this);
             }
             
             // If not already actively engaging (chasing, attacking, circling etc.)
@@ -488,7 +535,7 @@ namespace AI.FSM.NPC
                 // This flag is useful for states to know if initial contact was made.
                 // TODO: STOP THE VISIBILITY COROUTINE SINCE WE'RE NOW ENGAGING
                 // StopVisibilityChecks();
-                AlertNearbyNPCs(); // Notify NPCManager and other NPCs
+                AlertNearbyNPCs(); // Notify NPCManager and other NPCs 
 
                 IState chaseState = FindState<ChaseState>();
                 if (chaseState != null)

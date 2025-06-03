@@ -144,33 +144,23 @@ namespace AI.FSM.Warrior.States
             Vector3 toPlayer = (player.position - transform.position).normalized;
             Vector3 npcRight = transform.right;
             
-            // Consider nearby NPCs to avoid clustering
-            if (NPCManager.Instance != null)
+            var nearbyNPCs = NPCManager.Instance.GetNearbyEngagedNPCs(transform.position, 6f, _stateMachineNew);
+
+            if (nearbyNPCs.Count > 0)
             {
-                var nearbyNPCs = NPCManager.Instance.NPCsInRange;
-                if (nearbyNPCs.Count > 1)
-                {
-                    // Spread out from other NPCs
-                    Vector3 avgNPCPosition = Vector3.zero;
-                    foreach (var npc in nearbyNPCs)
-                    {
-                        if (npc != _stateMachineNew)
-                            avgNPCPosition += npc.transform.position;
-                    }
-                    avgNPCPosition /= (nearbyNPCs.Count - 1);
-                    
-                    Vector3 awayFromNPCs = (transform.position - avgNPCPosition).normalized;
-                    _currentStrafeDirection = Vector3.Dot(transform.right, awayFromNPCs) > 0 ? 1 : -1;
-                }
-                else
-                {
-                    // Default behavior: strafe perpendicular to player direction
-                    _currentStrafeDirection = (Vector3.Dot(npcRight, toPlayer) > 0) ? -1 : 1;
-                }
+                Vector3 avgNPCPosition = Vector3.zero;
+                foreach (var npc in nearbyNPCs)
+                    avgNPCPosition += npc.transform.position;
+
+                avgNPCPosition /= nearbyNPCs.Count;
+
+                Vector3 awayFromNPCs = (transform.position - avgNPCPosition).normalized;
+                _currentStrafeDirection = Vector3.Dot(npcRight, awayFromNPCs) > 0 ? 1 : -1;
             }
             else
             {
-                _currentStrafeDirection = Random.value > 0.5f ? 1 : -1;
+                // Default: strafe opposite direction from player-facing side
+                _currentStrafeDirection = (Vector3.Dot(npcRight, toPlayer) > 0) ? -1 : 1;
             }
         }
 
@@ -196,34 +186,69 @@ namespace AI.FSM.Warrior.States
                 _playerLostSightTimer += deltaTime;
             }
         }
-
         private bool ShouldTransitionToAttack()
         {
-            // Check for attack opportunity
-            if (NPCManager.Instance != null && NPCManager.Instance.GetAttackingNPC() == _stateMachineNew)
+            // 1. Do I have an attack turn already assigned?
+            if (IsMyTurnToAttack())
             {
-                Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: My turn to attack! Switching to PrepareAttackState.");
-                _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_PrepareAttackState>());
-                return true;
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: It's my turn to attack!");
+                return SwitchToPrepareAttack();
             }
 
-            // Check if player is close enough for immediate attack (overrides queue)
-            if (_wasPlayerVisibleLastFrame && _stateMachineNew.IsPlayerAttackable())
+            // 2. Am I close enough to override the queue?
+            if (CanForceAttackDueToProximity())
             {
-                float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-                if (distanceToPlayer < desiredCirclingRadius * 0.7f) // Very close
-                {
-                    if (NPCManager.Instance.RequestAttackPermission(_stateMachineNew as WarriorStateMachine))
-                    {
-                        Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: Player very close, attacking immediately!");
-                        _stateMachineNew.SwitchState(_stateMachineNew.FindState<W_PrepareAttackState>());
-                        return true;
-                    }
-                }
+                Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: Close to player, forcing attack!");
+                return SwitchToPrepareAttack();
+            }
+
+            // 3. Otherwise, stay in circling
+            return false;
+        }
+
+        private bool CanForceAttackDueToProximity()
+        {
+            if (!_wasPlayerVisibleLastFrame || !_stateMachineNew.IsPlayerAttackable())
+                return false;
+
+            float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+            if (distanceToPlayer < desiredCirclingRadius * 0.7f)
+            {
+                // Try to claim a slot
+                return NPCManager.Instance.RequestAttackPermission(_stateMachineNew as WarriorStateMachine);
             }
 
             return false;
         }
+
+        private bool SwitchToPrepareAttack()
+        {
+            var prep = _stateMachineNew.FindState<W_PrepareAttackState>();
+            if (prep != null)
+            {
+                _stateMachineNew.SwitchState(prep);
+                return true;
+            }
+
+            Debug.LogWarning($"[{_stateMachineNew.gameObject.name}] CirclingState: PrepareAttackState not found.");
+            return false;
+        }
+
+        private int GetNPCAttackPriority(WarriorStateMachine npc)
+        {
+            int priority = 0;
+            if (npc.IsPlayerVisible()) priority += 10;
+            if (npc.IsPlayerAttackable()) priority += 5;
+            if (npc.CurrentState is W_CirclingState) priority += 3;
+            return priority;
+        }
+
+        
+        private bool IsMyTurnToAttack()
+        {
+            return NPCManager.Instance?.GetPrimaryAttacker() == _stateMachineNew;
+        }
+
 
         private bool ShouldTransitionToChase()
         {
@@ -330,7 +355,7 @@ namespace AI.FSM.Warrior.States
             // Adjust based on nearby NPCs
             if (NPCManager.Instance != null)
             {
-                var nearbyNPCs = NPCManager.Instance.NPCsInRange;
+                var nearbyNPCs = NPCManager.Instance.GetNearbyEngagedNPCs(transform.position, 6f, _stateMachineNew);
                 if (nearbyNPCs.Count > 2) // Too crowded, increase radius
                 {
                     baseRadius = Mathf.Min(maxCirclingRadius, baseRadius + 1f);
