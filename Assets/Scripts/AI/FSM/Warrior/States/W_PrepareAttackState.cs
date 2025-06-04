@@ -5,6 +5,7 @@ using AI.FSM.NPC.States;
 using AI.FSM.Utility;
 using AI.NPC.Sensing;
 using Animation.AnimControllers;
+using Characters.NPC;
 using Core.Events;
 using Core.Events.Combat;
 using Cysharp.Threading.Tasks;
@@ -36,6 +37,12 @@ namespace AI.FSM.Warrior.States
         private NavMeshAgent agent;
         private Vector3 attackPosition; // Position to move to before telegraphing
         private CharacterAnimator charAnim; // Assuming this is used
+        private NPCController npcController;
+
+        // private void Awake()
+        // {
+        //     throw new NotImplementedException();
+        // }
 
         private void OnEnable()
         {
@@ -73,7 +80,7 @@ namespace AI.FSM.Warrior.States
             agent.isStopped = true; // Stop to telegraph
             _warriorFSM.RotateToFacePlayer();
 
-            var npcController = _warriorFSM.NpcController;
+            npcController = _warriorFSM.NpcController;
             if (npcController != null)
             {
                 // Start the telegraph action - this should trigger the telegraph animation
@@ -288,6 +295,10 @@ namespace AI.FSM.Warrior.States
         {
             if (_attackIntent.HasAssignedAttackTurn())
             {
+                // End telegraph
+               if (npcController != null) npcController.EndTelegraphAction();
+                _isTelegraphing = false;
+
                 _attackIntent.CommitAttack(); // Switches to StrikeState
             }
             else
@@ -308,8 +319,7 @@ namespace AI.FSM.Warrior.States
             if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
                 _safetyTimeoutTokenSource.Cancel();
 
-            // End telegraph
-            var npcController = _warriorFSM.NpcController;
+
             if (npcController != null) npcController.EndTelegraphAction();
 
             //TODO: have the event trigger storage of memory

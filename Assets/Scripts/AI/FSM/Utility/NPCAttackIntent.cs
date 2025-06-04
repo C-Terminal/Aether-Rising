@@ -75,9 +75,9 @@ namespace AI.FSM.Utility
         public void CommitAttack()
         {
             Debug.Log($"[{_fsm.name}] Committing attack. Switching to W_StrikeState.");
-            var prep = _fsm.FindState<W_StrikeState>();
-            if (prep != null)
-                _fsm.SwitchState(prep);
+            var strike = _fsm.FindState<W_StrikeState>();
+            if (strike != null)
+                _fsm.SwitchState(strike);
             else
                 Debug.LogError($"[{_fsm.name}] W_StrikeState not found.");
         }

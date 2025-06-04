@@ -606,12 +606,49 @@ namespace AI.FSM.NPC
         public void ReceiveAttackInvitation()
         {
             Debug.Log($"[{name}] Received attack invitation.");
-    
+
+            if (IsDead || IsPlayerDead)
+            {
+                Debug.LogWarning($"[{name}] Ignoring invitation: dead or player is dead.");
+                return;
+            }
+
+            if (CurrentState is W_StrikeState ||
+                CurrentState is W_RecoverState ||
+                CurrentState is W_PrepareAttackState ||
+                CurrentState is W_RetreatState ||
+                CurrentState is DeathState)
+            {
+                Debug.LogWarning($"[{name}] Ignoring attack invitation due to current state: {CurrentState?.GetType().Name}");
+                return;
+            }
+
+            // Optional: Skip if morale too low
+            var memory = GetComponent<NPCMemoryComponent>();
+            if (memory != null && memory.morale < 0.25f)
+            {
+                Debug.Log($"[{name}] Skipping invitation due to low morale: {memory.morale:F2}");
+                return;
+            }
+
+            // Optional: Only accept if currently circling or idle-like
+            if (CurrentState is not W_CirclingState &&
+                CurrentState is not IdleState &&
+                CurrentState is not WanderState &&
+                CurrentState is not ChaseState)
+            {
+                Debug.Log($"[{name}] Received invitation, but in transitional state: {CurrentState?.GetType().Name}");
+                return;
+            }
+
+            // All clear — transition
             var prepareAttackState = FindState<W_PrepareAttackState>();
             if (prepareAttackState != null)
             {
+                Debug.Log($"[{name}] Accepting invitation. Switching to PrepareAttackState.");
                 SwitchState(prepareAttackState);
             }
         }
+
     }
 }
