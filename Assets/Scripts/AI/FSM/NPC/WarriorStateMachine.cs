@@ -66,8 +66,8 @@ namespace AI.FSM.NPC
         {
             // TryAutoInjectDependencies();
             
-            // if (GetComponent<NPCMemoryComponent>() == null)
-            //     gameObject.AddComponent<NPCMemoryComponent>();
+            if (GetComponent<NPCMemoryComponent>() == null)
+                gameObject.AddComponent<NPCMemoryComponent>();
             
             // Cache essential components
             Player = GameObject.FindWithTag("Player")?.transform;

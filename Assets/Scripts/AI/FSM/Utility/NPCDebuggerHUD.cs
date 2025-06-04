@@ -16,7 +16,7 @@ namespace AI.FSM.Utility
         void Start()
         {
             _fsm = followTarget?.GetComponent<WarriorStateMachine>();
-            _memory = followTarget?.GetComponent<NPCMemoryComponent>();
+            _memory = _fsm?.GetComponent<NPCMemoryComponent>();
         }
 
         void Update()
