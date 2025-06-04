@@ -24,7 +24,7 @@ namespace AI.FSM.Warrior.States
         
         // Cancellation token for safety timeout (optional fallback)
         private CancellationTokenSource _safetyTimeoutTokenSource;
-        private float _safetyTimeoutDuration = 0.5f; // Safety fallback timeout
+        private float _safetyTimeoutDuration = 0.25f; // Safety fallback timeout
 
         private bool _hasCompletedRecovery = false;
         private bool _hasExited = false;
@@ -170,7 +170,7 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateExit()
         {
-            _hasExited = true;
+            _hasExited = false;
             Debug.Log($"[{_machineNew.name}] Exiting RecoverState.");
         }
 

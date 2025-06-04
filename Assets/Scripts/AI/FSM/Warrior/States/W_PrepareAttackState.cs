@@ -29,7 +29,7 @@ namespace AI.FSM.Warrior.States
 
         // Perception system reference
         private NPCPerceptionCoordinator _perceptionCoordinator;
-        private float _safetyTimeoutDuration = 1f; // Safety fallback timeout
+        private float _safetyTimeoutDuration = 0.2f; // Safety fallback timeout
 
         // Cancellation token for safety timeout (optional fallback)
         private CancellationTokenSource _safetyTimeoutTokenSource;
@@ -101,7 +101,7 @@ namespace AI.FSM.Warrior.States
                 }
 
                 // Update safety timeout duration based on telegraph duration
-                _safetyTimeoutDuration = telegraphDuration + 0.3f; // Add buffer time
+                _safetyTimeoutDuration = telegraphDuration + 0.1f; // Add buffer time
                 // Get current target from perception system instead of direct Player reference
                 var currentTarget = GetCurrentTarget();
                 // Raise event for additional telegraph effects

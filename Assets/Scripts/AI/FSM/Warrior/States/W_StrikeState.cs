@@ -22,7 +22,7 @@ namespace AI.FSM.Warrior.States
         private NPCController _npcController;
         private MeleeWeaponDamage _weapon;
 
-        private float _estimatedStrikeDuration = 1.2f;
+        private float _estimatedStrikeDuration = 0.2f;
         private CancellationTokenSource _cts;
         private bool _hasClearedSlot;
         private bool _strikeCompleted;
