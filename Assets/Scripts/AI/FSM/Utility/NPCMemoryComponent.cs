@@ -1,4 +1,5 @@
 ﻿using System;
+using Environment.Zones;
 using UnityEngine;
 #if UNITY_EDITOR
 #endif
@@ -14,6 +15,8 @@ namespace AI.FSM.Utility
         public float aggression = 0.5f;
 
         [Range(0f, 1f)] public float morale = 0.7f;
+        [Tooltip("Current NavZone the NPC is assigned to (e.g. patrol area)")]
+        public NavZoneMono currentZone;
 
         [Header("Runtime Memory")] public bool lastAttackRequestSuccess;
 
