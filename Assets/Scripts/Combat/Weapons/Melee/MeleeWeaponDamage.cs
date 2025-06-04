@@ -132,17 +132,21 @@ namespace Combat.Weapons.Melee
             // Check if this object has already been hit during this current swing (active collider phase)
             if (_hitObjectsThisSwing.Contains(other.gameObject))
             {
-                // Optional: Check cooldown for rapid re-hits on the same target if collider stays active
-                if (_lastHitTimePerTarget.ContainsKey(other.gameObject) &&
-                    Time.time < _lastHitTimePerTarget[other.gameObject] + hitCooldownPerTarget)
+                if (_lastHitTimePerTarget != null)
                 {
-                    // Debug.Log($"[{gameObject.name}] MeleeWeaponDamage: Hit {other.name} again too soon (cooldown).");
-                    return; // Hit too soon after previous hit on this target
+                    // Optional: Check cooldown for rapid re-hits on the same target if collider stays active
+                    if (_lastHitTimePerTarget.ContainsKey(other.gameObject) &&
+                        Time.time < _lastHitTimePerTarget[other.gameObject] + hitCooldownPerTarget)
+                    {
+                        // Debug.Log($"[{gameObject.name}] MeleeWeaponDamage: Hit {other.name} again too soon (cooldown).");
+                        return; // Hit too soon after previous hit on this target
+                    }
+                    // If it's not on cooldown (or cooldown is very short), but already hit *this swing*, we might still ignore it.
+                    // The _hitObjectsThisSwing list handles the "once per swing active phase"
+                    // Debug.Log($"[{gameObject.name}] MeleeWeaponDamage: {other.name} already hit this swing. (This message implies cooldown logic might be bypassed if hitCooldownPerTarget is 0 or very small).");
+                    return;
                 }
-                // If it's not on cooldown (or cooldown is very short), but already hit *this swing*, we might still ignore it.
-                // The _hitObjectsThisSwing list handles the "once per swing active phase"
-                // Debug.Log($"[{gameObject.name}] MeleeWeaponDamage: {other.name} already hit this swing. (This message implies cooldown logic might be bypassed if hitCooldownPerTarget is 0 or very small).");
-                return;
+
             }
 
 

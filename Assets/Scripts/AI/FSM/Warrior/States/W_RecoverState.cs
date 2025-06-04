@@ -4,6 +4,7 @@ using Animation.AnimControllers;
 using Characters.NPC;
 using Cysharp.Threading.Tasks;
 using System.Threading;
+using AI.FSM.Utility;
 using Core.Events;
 using Core.Events.Combat;
 using UnityEngine;
@@ -23,9 +24,10 @@ namespace AI.FSM.Warrior.States
         
         // Cancellation token for safety timeout (optional fallback)
         private CancellationTokenSource _safetyTimeoutTokenSource;
-        private float _safetyTimeoutDuration = 5f; // Safety fallback timeout
+        private float _safetyTimeoutDuration = 0.5f; // Safety fallback timeout
 
         private bool _hasCompletedRecovery = false;
+        private bool _hasExited = false;
 
         void Awake()
         {
@@ -78,20 +80,19 @@ namespace AI.FSM.Warrior.States
         {
             if (_machineNew == null || _npcController == null || _charAnim == null || _agent == null)
             {
-                Debug.LogError($"[{gameObject.name ?? "W_RecoverState"}] Critical reference missing in OnStateEnter. State cannot execute. Forcing Idle.");
-                _machineNew?.SwitchState(_machineNew.FindState<IdleState>()); // Failsafe
+                Debug.LogError($"[{name}] RecoverState missing dependencies. Forcing Idle.");
+                _machineNew?.SwitchState(_machineNew.FindState<IdleState>());
                 return;
             }
 
-            Debug.Log($"[{_machineNew.gameObject.name}] Entering RecoverState - Animation Driven Mode.");
-            
+            Debug.Log($"[{_machineNew.name}] Entering RecoverState.");
+    
             _isRecovering = true;
-            _agent.isStopped = true; // Stay stopped during recovery
+            _hasCompletedRecovery = false;
+            _hasExited = false;
+            _agent.isStopped = true;
 
-            // Execute the recovery action - this should trigger the recovery animation
             _npcController.ExecuteRecoveryAction();
-            
-            // Start safety timeout as a fallback in case animation event never fires
             StartSafetyTimeout();
         }
 
@@ -169,10 +170,8 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateExit()
         {
-            if (_machineNew == null) return;
-
-            Debug.Log($"[{_machineNew.gameObject.name}] Exiting RecoverState.");
-            CompleteRecoveryAndTransition(); // Safe, only runs once
+            _hasExited = true;
+            Debug.Log($"[{_machineNew.name}] Exiting RecoverState.");
         }
 
 
@@ -205,29 +204,34 @@ namespace AI.FSM.Warrior.States
         
         private void CompleteRecoveryAndTransition()
         {
-            // Always ensure recovery animation is marked finished
-            _npcController?.FinishRecoveryAction();
-            
-            if (_hasCompletedRecovery) return;
+            if (_hasCompletedRecovery || _hasExited) return;
+
             _hasCompletedRecovery = true;
             _isRecovering = false;
 
-            Debug.Log($"[{_machineNew.gameObject.name}] Completing recovery and transitioning.");
+            _npcController?.FinishRecoveryAction();
 
-            // Cancel safety timeout
-            if (_safetyTimeoutTokenSource != null && !_safetyTimeoutTokenSource.Token.IsCancellationRequested)
+            Debug.Log($"[{_machineNew.name}] Recovery complete. Determining next state...");
+
+            if (_safetyTimeoutTokenSource?.Token.IsCancellationRequested == false)
             {
                 _safetyTimeoutTokenSource.Cancel();
-                Debug.Log($"[{_machineNew.gameObject.name}] Cancelled safety timeout.");
             }
             _safetyTimeoutTokenSource?.Dispose();
             _safetyTimeoutTokenSource = null;
-            
 
-            // Transition to Circling or fallback Idle
-            // var nextState = _machineNew.FindState<W_CirclingState>();
-            // _machineNew.SwitchState(nextState);
-            _machineNew.SwitchState(_machineNew.FindState<IdleState>()); // Fallback
+            // Transition based on memory / player proximity / fallback
+            var memory = GetComponent<NPCMemoryComponent>();
+            bool cautious = memory != null && memory.morale < 0.35f;
+
+            if (_machineNew.IsPlayerVisible() && !cautious)
+            {
+                _machineNew.SwitchState(_machineNew.FindState<W_CirclingState>());
+            }
+            else
+            {
+                _machineNew.SwitchState(_machineNew.FindState<IdleState>());
+            }
         }
 
     }

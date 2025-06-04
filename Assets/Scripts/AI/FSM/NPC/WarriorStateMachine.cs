@@ -614,7 +614,7 @@ namespace AI.FSM.NPC
             }
 
             if (CurrentState is W_StrikeState ||
-                CurrentState is W_RecoverState ||
+                // CurrentState is W_RecoverState ||
                 CurrentState is W_PrepareAttackState ||
                 CurrentState is W_RetreatState ||
                 CurrentState is DeathState)
