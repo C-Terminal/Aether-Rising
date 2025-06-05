@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace AI.FSM.Utility
 {
-    public class NPCIntentController
+    public class NPCIntentController 
     {
         private readonly WarriorStateMachine _fsm;
         private readonly Transform _player;
@@ -97,6 +97,11 @@ namespace AI.FSM.Utility
         public void TickPerFrame()
         {
             // Optional: add adaptive urgency, group calls, or dynamic priorities
+        }
+
+        public bool ShouldFallbackFromCircling()
+        {
+            return Random.value < 0.25f;
         }
     }
 }

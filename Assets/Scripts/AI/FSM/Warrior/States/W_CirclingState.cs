@@ -1,5 +1,7 @@
 ﻿using AI.FSM.NPC;
 using AI.FSM.NPC.States;
+using AI.FSM.Utility;
+using AI.NPC.Sensing;
 using Animation.AnimControllers;
 using UnityEngine;
 using UnityEngine.AI;
@@ -11,7 +13,11 @@ namespace AI.FSM.Warrior.States
         private StateMachineNew _stateMachineNew;
         private NavMeshAgent agent;
         private CharacterAnimator charAnim;
-        private Transform player;
+        private Transform target;
+        private NPCPerceptionCoordinator _perceptionCoordinator;
+        private NPCMemoryComponent _memory;
+        private NPCIntentController _intentController;
+
 
         [Header("Circling Parameters")]
         [SerializeField] private float circlingSpeed = 2.0f;
@@ -53,8 +59,16 @@ namespace AI.FSM.Warrior.States
             // Cache components
             agent = _stateMachineNew.Agent;
             charAnim = _stateMachineNew.CharAnim;
-            player = _stateMachineNew.Player;
+            target = _perceptionCoordinator?.GetCurrentTarget() ?? _stateMachineNew.Player;
 
+            _memory = _stateMachineNew.GetComponent<NPCMemoryComponent>();
+            _perceptionCoordinator = _stateMachineNew.GetComponentInChildren<NPCPerceptionCoordinator>();
+            _intentController = _stateMachineNew.IntentController;
+
+            if (_perceptionCoordinator == null)
+                Debug.LogWarning($"[{_stateMachineNew.name}] CirclingState: No NPCPerceptionCoordinator assigned.");
+
+            
             if (!ValidateComponents())
             {
                 Debug.LogError($"[{gameObject.name}] W_CirclingState: Critical components missing. Switching to safe state.");
@@ -70,10 +84,24 @@ namespace AI.FSM.Warrior.States
 
         public void OnStateUpdate(float deltaTime)
         {
+            
+            if (_intentController != null && _intentController.ShouldFallbackFromCircling())
+            {
+                Debug.Log($"[{_stateMachineNew.name}] CirclingState: Fallback triggered by intent controller.");
+                _stateMachineNew.SwitchState(_stateMachineNew.FindState<IdleState>());
+                return;
+            }
+            
+            if (_memory != null && _memory.timeUntilNextCirclingAllowed > 0f)
+            {
+                _memory.timeUntilNextCirclingAllowed -= deltaTime;
+                return;
+            }
+            
             if (!ValidateComponents()) return;
 
             // Always try to face the player (or last known position)
-            Vector3 targetPosition = _wasPlayerVisibleLastFrame ? player.position : _lastKnownPlayerPosition;
+            Vector3 targetPosition = _wasPlayerVisibleLastFrame ? target.position : _lastKnownPlayerPosition;
             _stateMachineNew.RotateTowardPosition(targetPosition);
 
             // Check player visibility
@@ -99,6 +127,10 @@ namespace AI.FSM.Warrior.States
             {
                 agent.ResetPath();
             }
+            
+            if (_memory != null)
+                _memory.timeUntilNextCirclingAllowed = 3f; // Prevent instant re-entry
+
 
             // Reset timers and flags
             _currentStrafeTimer = 0f;
@@ -110,7 +142,7 @@ namespace AI.FSM.Warrior.States
 
         private bool ValidateComponents()
         {
-            return agent != null && charAnim != null && player != null && agent.enabled;
+            return agent != null && charAnim != null && target != null && agent.enabled;
         }
 
         private void InitializeCirclingBehavior()
@@ -126,7 +158,7 @@ namespace AI.FSM.Warrior.States
             _currentStrafeTimer = 0f;
             _playerLostSightTimer = 0f;
             _wasPlayerVisibleLastFrame = true;
-            _lastKnownPlayerPosition = player.position;
+            _lastKnownPlayerPosition = target.position;
             _consecutiveNavMeshFailures = 0;
 
             // Calculate first strafe point
@@ -141,7 +173,7 @@ namespace AI.FSM.Warrior.States
         private void DetermineInitialStrafeDirection()
         {
             // More intelligent direction selection based on positioning
-            Vector3 toPlayer = (player.position - transform.position).normalized;
+            Vector3 toPlayer = (target.position - transform.position).normalized;
             Vector3 npcRight = transform.right;
             
             var nearbyNPCs = NPCManager.Instance.GetNearbyEngagedNPCs(transform.position, 6f, _stateMachineNew);
@@ -171,7 +203,7 @@ namespace AI.FSM.Warrior.States
             if (canSeePlayer)
             {
                 _wasPlayerVisibleLastFrame = true;
-                _lastKnownPlayerPosition = player.position;
+                _lastKnownPlayerPosition = target.position;
                 _playerLostSightTimer = 0f;
             }
             else
@@ -208,10 +240,17 @@ namespace AI.FSM.Warrior.States
 
         private bool CanForceAttackDueToProximity()
         {
-            if (!_wasPlayerVisibleLastFrame || !_stateMachineNew.IsPlayerAttackable())
+            if (!_perceptionCoordinator?.IsPlayerCurrentlyVisible() ?? false)
                 return false;
 
-            float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+            if (_stateMachineNew.IsPlayerDead)
+                return false;
+
+            if (!_stateMachineNew.IsPlayerAttackable())
+                return false;
+
+
+            float distanceToPlayer = Vector3.Distance(transform.position, target.position);
             if (distanceToPlayer < desiredCirclingRadius * 0.7f)
             {
                 // Try to claim a slot
@@ -254,7 +293,7 @@ namespace AI.FSM.Warrior.States
         {
             if (!_wasPlayerVisibleLastFrame) return false;
 
-            float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+            float distanceToPlayer = Vector3.Distance(transform.position, target.position);
             if (distanceToPlayer > maxEngagementDistance)
             {
                 Debug.Log($"[{_stateMachineNew.gameObject.name}] CirclingState: Player too far ({distanceToPlayer:F1}m). Switching to ChaseState.");
@@ -315,7 +354,7 @@ namespace AI.FSM.Warrior.States
 
         private void CalculateAndSetNewStrafeDestination()
         {
-            if (player == null || agent == null) return;
+            if (target == null || agent == null) return;
 
             _currentStrafeTimer = 0f;
 
@@ -327,7 +366,7 @@ namespace AI.FSM.Warrior.States
             }
 
             // Use last known player position if not visible
-            Vector3 referencePosition = _wasPlayerVisibleLastFrame ? player.position : _lastKnownPlayerPosition;
+            Vector3 referencePosition = _wasPlayerVisibleLastFrame ? target.position : _lastKnownPlayerPosition;
             
             // Calculate adaptive radius
             float currentRadius = CalculateAdaptiveRadius();

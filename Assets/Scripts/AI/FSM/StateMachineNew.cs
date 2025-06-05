@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using AI.FSM.Utility;
 using Animation.AnimControllers;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
@@ -23,6 +24,9 @@ namespace AI.FSM
         
         public abstract NPCController NpcController { get;  set;  }
         
+        public  abstract NPCMemoryComponent MemoryComponent { get; set; }
+        
+        public abstract NPCIntentController IntentController { get; set; }
 
         public List<IState> states = new List<IState>();
         public IState CurrentState { get; protected set; }

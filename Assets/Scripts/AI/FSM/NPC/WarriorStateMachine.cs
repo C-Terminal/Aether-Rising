@@ -25,7 +25,8 @@ namespace AI.FSM.NPC
         // Add near other properties:
         private Transform _playerInTriggerZoneCache; // Player transform from detector
         public Action<IState, IState> OnStateChanged; // Event for state changes
-
+        public override NPCMemoryComponent MemoryComponent { get; set; }
+        public override NPCIntentController IntentController { get; set; }
         private IState startingState;
 
         // State & Component References
@@ -36,12 +37,10 @@ namespace AI.FSM.NPC
         private ICharacterAnimator animator;
         private INPCController controller;
         private IHealth health;
-        private IVisionSensor vision;
-        // private ITargetingSensor targeting;
-        // private IZoneDetector zone;
-        public override NPCController NpcController { get; set; } // Reference to NPCController
+        private IVisionSensor vision; public override NPCController NpcController { get; set; } // Reference to NPCController
         public override Transform Player { get; set; }
 
+        
         public override NavMeshAgent Agent { get; set; }
 
         // public Animator Anim { get; private set; }
@@ -66,8 +65,10 @@ namespace AI.FSM.NPC
         {
             // TryAutoInjectDependencies();
             
-            if (GetComponent<NPCMemoryComponent>() == null)
-                gameObject.AddComponent<NPCMemoryComponent>();
+            
+            
+            
+            MemoryComponent = GetComponent<NPCMemoryComponent>();
             
             // Cache essential components
             Player = GameObject.FindWithTag("Player")?.transform;
@@ -614,7 +615,7 @@ namespace AI.FSM.NPC
             }
 
             if (CurrentState is W_StrikeState ||
-                // CurrentState is W_RecoverState ||
+                CurrentState is W_RecoverState ||
                 CurrentState is W_PrepareAttackState ||
                 CurrentState is W_RetreatState ||
                 CurrentState is DeathState)

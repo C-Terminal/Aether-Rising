@@ -22,6 +22,7 @@ namespace AI.FSM.Utility
 
         public float lastAttackRequestTime;
         public float lastPlayerSightingTime;
+        public float timeUntilNextCirclingAllowed = 0f;
 
         [Header("Debug Visualization")] [SerializeField]
         private bool showDebugGizmos = true;

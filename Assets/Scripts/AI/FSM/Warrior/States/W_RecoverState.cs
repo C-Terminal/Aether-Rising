@@ -20,7 +20,7 @@ namespace AI.FSM.Warrior.States
         private NPCController _npcController;
 
         // Remove timer-based recovery - now purely animation driven
-        private bool _isRecovering = false;
+        private bool _isRecovering;
         
         // Cancellation token for safety timeout (optional fallback)
         private CancellationTokenSource _safetyTimeoutTokenSource;
@@ -130,6 +130,7 @@ namespace AI.FSM.Warrior.States
             }
             catch (Exception ex)
             {
+                // _isRecovering = true;
                 Debug.LogError($"[{_machineNew.gameObject.name}] Recovery timeout error: {ex.Message}");
                 if (_isRecovering)
                 {
@@ -221,7 +222,7 @@ namespace AI.FSM.Warrior.States
             _safetyTimeoutTokenSource = null;
 
             // Transition based on memory / player proximity / fallback
-            var memory = GetComponent<NPCMemoryComponent>();
+            var memory = _machineNew?.MemoryComponent; // ✅ GOOD
             bool cautious = memory != null && memory.morale < 0.35f;
 
             if (_machineNew.IsPlayerVisible() && !cautious)

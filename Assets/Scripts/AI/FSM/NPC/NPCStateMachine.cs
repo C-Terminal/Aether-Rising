@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using AI.FSM.NPC.States;
+using AI.FSM.Utility;
 using Animation.AnimControllers;
 using Characters.NPC;
 using Combat.DamageSystem.Health;
@@ -41,6 +42,8 @@ namespace AI.FSM.NPC
         public override NPCController NpcCtrl { get; }
         public override Health NpcHealth { get;  set; } // Assuming Health component is present
         public override NPCController NpcController { get; set; }
+        public override NPCMemoryComponent MemoryComponent { get; set; }
+        public override NPCIntentController IntentController { get; set; }
         public IState CurrentState { get; private set; }
 
         // Event subscriptions for health changes
